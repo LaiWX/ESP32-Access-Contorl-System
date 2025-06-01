@@ -12,7 +12,7 @@
 #include <Adafruit_PN532.h>
 
 // =============================================================================
-// CONFIGURATION
+// 配置
 // =============================================================================
 // PN532 I2C pins
 #define PN532_IRQ   34
@@ -27,18 +27,18 @@
 #define KEY_SIZE 6
 #define TRAILER_SIZE 16
 
-// File system
+// 文件系统
 const char* CARD_FILE = "/cards.json";
 
 // =============================================================================
-// GLOBAL VARIABLES
+// 全局变量
 // =============================================================================
 Adafruit_PN532 nfc(PN532_IRQ, PN532_RESET);
 StaticJsonDocument<1024> cardDatabase;
 uint8_t defaultKey[KEY_SIZE] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
 // =============================================================================
-// UTILITY FUNCTIONS
+// 工具函数
 // =============================================================================
 String uidToString(uint8_t* uid, uint8_t len) {
   String result;
@@ -71,9 +71,9 @@ void hexStringToKey(const String& hexString, uint8_t* key) {
 }
 
 // =============================================================================
-// LED CONTROL
+// LED 控制
 // =============================================================================
-void blinkLED(int times = 4, int delayMs = 100) {
+void blinkLED(int times = 3, int delayMs = 100) {
   for (int i = 0; i < times; i++) {
     digitalWrite(LED_PIN, HIGH);
     delay(delayMs);
@@ -83,7 +83,7 @@ void blinkLED(int times = 4, int delayMs = 100) {
 }
 
 // =============================================================================
-// FILE SYSTEM OPERATIONS
+// 文件系统操作
 // =============================================================================
 void saveCards() {
   File file = SPIFFS.open(CARD_FILE, FILE_WRITE);
@@ -114,7 +114,7 @@ void loadCards() {
 }
 
 // =============================================================================
-// NFC OPERATIONS
+// NFC 操作
 // =============================================================================
 bool readCardUID(uint8_t* uid, uint8_t* uidLen) {
   return nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, uidLen);
@@ -140,7 +140,7 @@ bool writeSectorTrailer(uint8_t* newKey) {
 }
 
 // =============================================================================
-// CARD MANAGEMENT
+// 卡片管理
 // =============================================================================
 bool findCardByUID(const String& uid, String& keyHex) {
   JsonArray cards = cardDatabase.as<JsonArray>();
@@ -185,7 +185,7 @@ bool removeCardFromDatabase(const String& uid) {
 }
 
 // =============================================================================
-// COMMAND HANDLERS
+// 命令处理
 // =============================================================================
 void handleRegisterCommand() {
   Serial.println("-- Tap blank card to register --");
@@ -316,7 +316,7 @@ void processSerialCommand() {
 }
 
 // =============================================================================
-// INITIALIZATION
+// 初始化
 // =============================================================================
 bool initializeFileSystem() {
   if (!SPIFFS.begin(true)) {
@@ -360,24 +360,25 @@ void printWelcomeMessage() {
 }
 
 // =============================================================================
-// MAIN FUNCTIONS
+// 主函数
 // =============================================================================
 void setup() {
-  Serial.begin(115200);
-  while (!Serial) {
-    delay(10);
-  }
-
   initializeLED();
+
+  Serial.begin(115200);
+  for (int i = 0; i < 3; i++) {
+    blinkLED(1, 100);
+    delay(100);
+  }
 
   if (!initializeFileSystem()) {
     Serial.println("Failed to initialize file system");
-    while (1) delay(1000);
+    while (true) delay(1000);
   }
 
   if (!initializeNFC()) {
     Serial.println("Failed to initialize NFC reader");
-    while (1) delay(1000);
+    while (true) delay(1000);
   }
 
   printWelcomeMessage();
