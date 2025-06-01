@@ -43,12 +43,40 @@ bool AuthenticationManager::initialize() {
 }
 
 void AuthenticationManager::handleAuthentication() {
+    // 检查NFC认证器的操作完成状态
+    if (nfcAuth != nullptr && nfcAuth->isOperationCompleted()) {
+        bool success = nfcAuth->getOperationResult();
+        NFCAuthenticator::OperationType opType = nfcAuth->getCurrentOperation();
+
+        if (success) {
+            if (opType == NFCAuthenticator::OP_ERASE) {
+                // 擦除操作成功，从数据库删除卡片
+                String uid = nfcAuth->getTargetUID();
+                if (cardDatabase->removeCard(uid)) {
+                    Serial.println("Card " + uid + " deleted from database");
+                }
+            }
+
+            // 保存到文件系统
+            if (fileSystemManager->saveCards()) {
+                if (opType == NFCAuthenticator::OP_REGISTER) {
+                    actionExecutor->executeRegistrationSuccessAction();
+                } else if (opType == NFCAuthenticator::OP_ERASE) {
+                    actionExecutor->executeDeletionSuccessAction();
+                }
+            } else {
+                Serial.println("Failed to save changes to file system");
+            }
+        }
+        nfcAuth->clearOperationFlag();
+    }
+
     // 遍历所有认证器，检查是否有认证请求
     for (auto* auth : authenticators) {
         if (auth->hasAuthenticationRequest()) {
             Serial.print("Authentication request from: ");
             Serial.println(auth->getName());
-            
+
             if (auth->authenticate()) {
                 Serial.println("Authentication successful");
                 actionExecutor->executeSuccessAction();
@@ -56,7 +84,7 @@ void AuthenticationManager::handleAuthentication() {
                 Serial.println("Authentication failed");
                 actionExecutor->executeFailureAction();
             }
-            
+
             // 处理完一个认证请求后就返回，避免同时处理多个
             return;
         }
@@ -68,20 +96,9 @@ bool AuthenticationManager::registerNewCard() {
         Serial.println("NFC authenticator not available for registration");
         return false;
     }
-    
-    bool success = nfcAuth->registerNewCard();
-    if (success) {
-        // 保存到文件系统
-        if (fileSystemManager->saveCards()) {
-            actionExecutor->executeRegistrationSuccessAction();
-            return true;
-        } else {
-            Serial.println("Failed to save card to file system");
-            return false;
-        }
-    }
-    
-    return false;
+
+    // 启动非阻塞注册流程
+    return nfcAuth->registerNewCard();
 }
 
 void AuthenticationManager::listRegisteredCards() {
@@ -105,7 +122,7 @@ bool AuthenticationManager::deleteCard(const String& uid) {
         Serial.println("Usage: del <UID>");
         return false;
     }
-    
+
     if (cardDatabase->removeCard(uid)) {
         if (fileSystemManager->saveCards()) {
             Serial.println("Deleted " + uid);
@@ -119,6 +136,27 @@ bool AuthenticationManager::deleteCard(const String& uid) {
         Serial.println("Card not found: " + uid);
         return false;
     }
+}
+
+bool AuthenticationManager::eraseAndDeleteCard(const String& uid) {
+    if (uid.length() == 0) {
+        Serial.println("Usage: erase <UID>");
+        return false;
+    }
+
+    if (nfcAuth == nullptr) {
+        Serial.println("NFC authenticator not available for erase operation");
+        return false;
+    }
+
+    // 检查卡片是否存在于数据库中
+    if (!cardDatabase->isCardRegistered(uid)) {
+        Serial.println("Card not found in database: " + uid);
+        return false;
+    }
+
+    // 启动非阻塞擦除流程
+    return nfcAuth->eraseCard(uid);
 }
 
 void AuthenticationManager::resetAll() {

@@ -76,10 +76,15 @@ void processSerialCommand() {
     else if (command.equalsIgnoreCase("list")) {
         authManager.listRegisteredCards();
     }
-    else if (command.startsWith("del")) {
-        String uid = command.substring(3);
+    else if (command.startsWith("del ")) {
+        String uid = command.substring(4);
         uid.trim();
         authManager.deleteCard(uid);
+    }
+    else if (command.startsWith("erase ")) {
+        String uid = command.substring(6);
+        uid.trim();
+        authManager.eraseAndDeleteCard(uid);
     }
     else if (command.equalsIgnoreCase("help")) {
         printWelcomeMessage();
@@ -97,11 +102,12 @@ void printWelcomeMessage() {
     Serial.println("    Door Access System Ready    ");
     Serial.println("=================================");
     Serial.println("Commands:");
-    Serial.println("  reg       - Register new card");
-    Serial.println("  list      - List all cards");
-    Serial.println("  del <UID> - Delete card");
-    Serial.println("  reset     - Reset all authenticators");
-    Serial.println("  help      - Show this help");
+    Serial.println("  reg         - Register new card (with timeout)");
+    Serial.println("  list        - List all cards");
+    Serial.println("  del <UID>   - Delete card");
+    Serial.println("  erase <UID> - Erase card key and delete");
+    Serial.println("  reset       - Reset all authenticators");
+    Serial.println("  help        - Show this help");
     Serial.println("=================================");
     Serial.println("Authentication methods:");
     Serial.println("  - NFC card authentication");

@@ -75,6 +75,13 @@ public:
      * @return 删除是否成功
      */
     bool deleteCard(const String& uid);
+
+    /**
+     * 擦除并删除指定卡片
+     * @param uid 卡片UID
+     * @return 擦除删除是否成功
+     */
+    bool eraseAndDeleteCard(const String& uid);
     
     /**
      * 重置所有认证器
