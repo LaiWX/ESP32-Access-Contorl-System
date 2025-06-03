@@ -12,11 +12,15 @@
 #include <Adafruit_PN532.h>
 
 // 模块化组件
-#include "authentication/AuthenticationManager.h"
+#include "access/AccessControlManager.h"
 #include "authentication/NFCAuthenticator.h"
 #include "authentication/ManualTriggerAuthenticator.h"
+#include "authentication/NFCCardManagerImpl.h"
+#include "execution/DoorAccessExecutor.h"
 #include "execution/LEDExecutor.h"
-#include "execution/DoorLockExecutor.h"
+#include "execution/BuzzerExecutor.h"
+#include "execution/ServoExecutor.h"
+#include "nfc/NFCCoordinator.h"
 #include "data/CardDatabase.h"
 #include "data/FileSystemManager.h"
 #include "utils/Utils.h"
@@ -31,8 +35,11 @@
 // LED pin
 #define LED_PIN 2
 
-// 门锁控制引脚
-#define DOOR_LOCK_PIN 12
+// 蜂鸣器引脚
+#define BUZZER_PIN 12
+
+// 舵机引脚
+#define SERVO_PIN 14
 
 // 手动触发引脚
 #define MANUAL_TRIGGER_PIN 13
@@ -47,16 +54,24 @@ Adafruit_PN532 nfc(PN532_IRQ, PN532_RESET);
 CardDatabase cardDatabase;
 FileSystemManager fileSystemManager(&cardDatabase);
 
-// 执行器（可以在这里切换使用LED或门锁执行器）
+// NFC协调器
+NFCCoordinator nfcCoordinator(&nfc, PN532_IRQ, PN532_RESET);
+
+// 执行器
 LEDExecutor ledExecutor(LED_PIN);
-// DoorLockExecutor doorLockExecutor(DOOR_LOCK_PIN, LED_PIN);
+BuzzerExecutor buzzerExecutor(BUZZER_PIN);
+ServoExecutor servoExecutor(SERVO_PIN);
+DoorAccessExecutor doorExecutor(&ledExecutor, &buzzerExecutor, &servoExecutor);
 
 // 认证器
-NFCAuthenticator nfcAuth(&nfc, &cardDatabase, PN532_IRQ, PN532_RESET);
+NFCAuthenticator nfcAuth(&nfcCoordinator, &cardDatabase);
 ManualTriggerAuthenticator manualAuth(MANUAL_TRIGGER_PIN);
 
-// 认证管理器
-AuthenticationManager authManager(&ledExecutor, &cardDatabase, &fileSystemManager);
+// 卡片管理器
+NFCCardManagerImpl cardManager(&nfcCoordinator, &cardDatabase, &fileSystemManager, &doorExecutor);
+
+// 门禁控制管理器
+AccessControlManager accessControl(&doorExecutor);
 
 // =============================================================================
 // 串口主界面
@@ -66,12 +81,12 @@ void printWelcomeMessage() {
     Serial.println("    Door Access System Ready    ");
     Serial.println("=================================");
     Serial.println("Commands:");
-    Serial.println("  reg         - Register new card (with timeout)");
-    Serial.println("  list        - List all cards");
-    Serial.println("  del <UID>   - Delete card");
-    Serial.println("  erase <UID> - Erase card key and delete");
-    Serial.println("  reset       - Reset all authenticators");
-    Serial.println("  help        - Show this help");
+    Serial.println("  card:register       - Register new card");
+    Serial.println("  card:list           - List all cards");
+    Serial.println("  card:delete:<UID>   - Delete card");
+    Serial.println("  card:erase:<UID>    - Erase card key and delete");
+    Serial.println("  reset               - Reset all components");
+    Serial.println("  help                - Show this help");
     Serial.println("=================================");
     Serial.println("Authentication methods:");
     Serial.println("  - NFC card authentication");
@@ -86,30 +101,22 @@ void processSerialCommand() {
     String command = Serial.readStringUntil('\n');
     command.trim();
 
-    if (command.equalsIgnoreCase("reg")) {
-        authManager.registerNewCard();
-    }
-    else if (command.equalsIgnoreCase("list")) {
-        authManager.listRegisteredCards();
-    }
-    else if (command.startsWith("del ")) {
-        String uid = command.substring(4);
-        uid.trim();
-        authManager.deleteCard(uid);
-    }
-    else if (command.startsWith("erase ")) {
-        String uid = command.substring(6);
-        uid.trim();
-        authManager.eraseAndDeleteCard(uid);
-    }
-    else if (command.equalsIgnoreCase("reset")) {
-        authManager.resetAll();
+    if (command.equalsIgnoreCase("reset")) {
+        accessControl.resetAll();
     }
     else if (command.equalsIgnoreCase("help")) {
         printWelcomeMessage();
     }
+    else if (command.indexOf(':') != -1) {
+        // 新的命令格式：type:action[:param]
+        if (!accessControl.executeManagementCommand(command)) {
+            Serial.println("Command failed. Type 'help' for available commands.");
+        }
+    }
     else {
         Serial.println("Unknown command. Type 'help' for available commands.");
+        Serial.println("Use format: type:action[:param]");
+        Serial.println("Example: card:register, card:delete:ABC123");
     }
 }
 
@@ -119,6 +126,13 @@ void processSerialCommand() {
 bool initializeSystem() {
     Serial.println("Initializing Door Access System...");
 
+    // 初始化NFC协调器
+    if (!nfcCoordinator.initialize()) {
+        Serial.println("Failed to initialize NFC coordinator");
+        return false;
+    }
+    Serial.println("NFC coordinator initialized");
+
     // 初始化文件系统
     if (!fileSystemManager.initialize()) {
         Serial.println("Failed to initialize file system");
@@ -126,21 +140,16 @@ bool initializeSystem() {
     }
     Serial.println("File system initialized");
 
-    // 添加认证器到管理器
-    authManager.addAuthenticator(&nfcAuth);
-    authManager.addAuthenticator(&manualAuth);
-    authManager.setNFCAuthenticator(&nfcAuth);
+    // 添加认证器到门禁控制管理器
+    accessControl.addAuthenticator(&nfcAuth);
+    accessControl.addAuthenticator(&manualAuth);
 
-    // 初始化执行器
-    if (!ledExecutor.initialize()) {
-        Serial.println("Failed to initialize LED executor");
-        return false;
-    }
-    Serial.println("LED executor initialized");
+    // 添加管理操作
+    accessControl.addManagementOperation("card", &cardManager);
 
-    // 初始化认证管理器
-    if (!authManager.initialize()) {
-        Serial.println("Failed to initialize authentication manager");
+    // 初始化门禁控制管理器
+    if (!accessControl.initialize()) {
+        Serial.println("Failed to initialize access control manager");
         return false;
     }
 
@@ -181,8 +190,14 @@ void loop() {
         processSerialCommand();
     }
 
+    // 处理NFC协调器
+    nfcCoordinator.handleNFC();
+
     // 处理认证请求
-    authManager.handleAuthentication();
+    accessControl.handleAuthentication();
+
+    // 处理管理操作
+    accessControl.handleManagementOperations();
 
     // 小延迟防止CPU过度使用
     delay(10);

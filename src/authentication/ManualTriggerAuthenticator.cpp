@@ -35,15 +35,9 @@ bool ManualTriggerAuthenticator::hasAuthenticationRequest() {
 }
 
 bool ManualTriggerAuthenticator::authenticate() {
-    unsigned long currentTime = millis();
-    
-    // 检查冷却时间
-    if (currentTime - lastTriggerTime < COOLDOWN_TIME) {
-        Serial.println("Manual trigger: In cooldown period");
-        return false;
-    }
-    
-    Serial.println("Manual trigger: Authentication successful");
+    // 手动触发器（室内按钮）应该总是成功
+    // 这是为了紧急情况或内部人员使用
+    Serial.println("Manual trigger: Authentication successful (indoor button)");
     return true;
 }
 

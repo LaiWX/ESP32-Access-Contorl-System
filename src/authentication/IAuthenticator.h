@@ -39,6 +39,29 @@ public:
      * 重置认证器状态
      */
     virtual void reset() = 0;
+
+    /**
+     * 检查认证器是否支持异步操作
+     * @return 是否支持异步操作
+     */
+    virtual bool supportsAsyncOperations() const { return false; }
+
+    /**
+     * 检查是否有已完成的异步操作（仅对支持异步操作的认证器有效）
+     * @return 是否有已完成的操作
+     */
+    virtual bool hasCompletedOperation() const { return false; }
+
+    /**
+     * 获取最近完成操作的结果（仅对支持异步操作的认证器有效）
+     * @return 操作结果
+     */
+    virtual bool getOperationResult() const { return false; }
+
+    /**
+     * 清除操作完成标志（仅对支持异步操作的认证器有效）
+     */
+    virtual void clearOperationFlag() {}
 };
 
 #endif // IAUTHENTICATOR_H

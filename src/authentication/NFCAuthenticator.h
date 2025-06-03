@@ -4,113 +4,56 @@
 #include "IAuthenticator.h"
 #include "../data/CardDatabase.h"
 #include "../utils/Utils.h"
-#include <Adafruit_PN532.h>
+#include "../nfc/NFCCoordinator.h"
 
 /**
  * NFC认证器
  * 使用PN532模块进行MIFARE Classic卡片认证
  */
 class NFCAuthenticator : public IAuthenticator {
-public:
-    // 操作类型枚举（需要在最前面定义）
-    enum OperationType {
-        OP_NONE,
-        OP_REGISTER,
-        OP_ERASE
-    };
-
 private:
-    Adafruit_PN532* nfc;
+    NFCCoordinator* nfcCoordinator;
     CardDatabase* cardDatabase;
-
-    // 硬件配置
-    int irqPin;
-    int resetPin;
     
     // MIFARE Classic 配置
     static const uint8_t SECTOR_TRAILER_BLOCK = 7;
     static const uint8_t AUTH_BLOCK = 4;
     static const uint8_t TRAILER_SIZE = 16;
 
-    // 状态管理
-    enum NFCState {
-        NFC_IDLE,
-        NFC_DETECTING,
-        NFC_CARD_PRESENT,
-        NFC_REGISTERING,
-        NFC_ERASING
-    };
-
-    NFCState currentState;
+    // 冷却机制
     unsigned long lastCardTime;
     String lastCardUID;
-    int irqCurr, irqPrev;
-
-    // 注册和擦除状态管理
-    unsigned long operationStartTime;
-    String targetUID; // 用于擦除操作的目标UID
-    bool operationCompleted; // 操作完成标志
-    bool operationSuccess; // 操作成功标志
-    OperationType currentOperation; // 当前操作类型
 
     // 防重放时间（毫秒）
     static const unsigned long CARD_COOLDOWN_MS = 1000;
-
-    // 注册和擦除超时时间（毫秒）
-    static const unsigned long OPERATION_TIMEOUT_MS = 10000;
-    
-    // 默认密钥
-    uint8_t defaultKey[Utils::KEY_SIZE] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
     
     /**
      * 读取卡片UID
      */
     bool readCardUID(uint8_t* uid, uint8_t* uidLen);
-    
+
     /**
      * 认证指定块
      */
     bool authenticateBlock(uint8_t* uid, uint8_t uidLen, uint8_t blockNumber, uint8_t* key);
-    
-    /**
-     * 写入扇区尾部
-     */
-    bool writeSectorTrailer(uint8_t* newKey);
-    
+
     /**
      * 启动NFC监听
      */
     void startNFCListening();
 
     /**
-     * 启动操作监听（用于注册和擦除）
-     */
-    void startOperationListening();
-    
-    /**
      * 处理卡片认证
      */
     bool handleCardAuthentication(uint8_t* uid, uint8_t uidLength);
 
-    /**
-     * 处理注册操作
-     */
-    void handleRegistration();
-
-    /**
-     * 处理擦除操作
-     */
-    void handleErase();
-
 public:
     /**
      * 构造函数
-     * @param nfcModule PN532模块指针
+     * @param coordinator NFC协调器指针
      * @param db 卡片数据库指针
-     * @param irq IRQ引脚
-     * @param reset 复位引脚
      */
-    NFCAuthenticator(Adafruit_PN532* nfcModule, CardDatabase* db, int irq, int reset);
+    NFCAuthenticator(NFCCoordinator* coordinator, CardDatabase* db);
     
     /**
      * 初始化NFC认证器
@@ -140,48 +83,6 @@ public:
      * 重置认证器状态
      */
     void reset() override;
-    
-    /**
-     * 注册新卡片（非阻塞，带超时）
-     * @return 注册是否成功
-     */
-    bool registerNewCard();
-
-    /**
-     * 擦除指定卡片的密钥
-     * @param uid 目标卡片UID
-     * @return 擦除是否成功
-     */
-    bool eraseCard(const String& uid);
-
-    /**
-     * 检查操作是否完成
-     * @return 操作是否完成
-     */
-    bool isOperationCompleted() const;
-
-    /**
-     * 获取操作结果
-     * @return 操作是否成功
-     */
-    bool getOperationResult() const;
-
-    /**
-     * 获取当前操作类型
-     * @return 操作类型
-     */
-    OperationType getCurrentOperation() const;
-
-    /**
-     * 获取目标UID（用于擦除操作）
-     * @return 目标UID
-     */
-    String getTargetUID() const;
-
-    /**
-     * 清除操作完成标志
-     */
-    void clearOperationFlag();
 };
 
 #endif // NFCAUTHENTICATOR_H
