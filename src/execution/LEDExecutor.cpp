@@ -21,9 +21,7 @@ void LEDExecutor::blinkLED(int times, int delayMs) {
 void LEDExecutor::executeSuccessAction() {
     Serial.println("Executing success action (LED)");
     blinkLED(2, 200); // 快速闪烁2次表示成功
-    
-    // 模拟门锁开启时间
-    delay(3000);
+
     Serial.println("Action completed");
 }
 

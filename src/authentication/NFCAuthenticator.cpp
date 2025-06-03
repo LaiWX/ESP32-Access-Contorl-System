@@ -75,7 +75,7 @@ void NFCAuthenticator::startNFCListening() {
             Serial.print("NFC: Ignored card: ");
             Serial.println(uidString);
         }
-        delay(100);
+        delay(500);
     }
 }
 

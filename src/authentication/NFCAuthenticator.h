@@ -54,7 +54,7 @@ private:
     OperationType currentOperation; // 当前操作类型
 
     // 防重放时间（毫秒）
-    static const unsigned long CARD_COOLDOWN_MS = 3000;
+    static const unsigned long CARD_COOLDOWN_MS = 1000;
 
     // 注册和擦除超时时间（毫秒）
     static const unsigned long OPERATION_TIMEOUT_MS = 10000;
