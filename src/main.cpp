@@ -59,9 +59,25 @@ ManualTriggerAuthenticator manualAuth(MANUAL_TRIGGER_PIN);
 AuthenticationManager authManager(&ledExecutor, &cardDatabase, &fileSystemManager);
 
 // =============================================================================
-// 函数声明
+// 串口主界面
 // =============================================================================
-void printWelcomeMessage();
+void printWelcomeMessage() {
+    Serial.println("\n=================================");
+    Serial.println("    Door Access System Ready    ");
+    Serial.println("=================================");
+    Serial.println("Commands:");
+    Serial.println("  reg         - Register new card (with timeout)");
+    Serial.println("  list        - List all cards");
+    Serial.println("  del <UID>   - Delete card");
+    Serial.println("  erase <UID> - Erase card key and delete");
+    Serial.println("  reset       - Reset all authenticators");
+    Serial.println("  help        - Show this help");
+    Serial.println("=================================");
+    Serial.println("Authentication methods:");
+    Serial.println("  - NFC card authentication");
+    Serial.println("  - Manual trigger (pin " + String(MANUAL_TRIGGER_PIN) + ")");
+    Serial.println("=================================");
+}
 
 // =============================================================================
 // 串口命令处理
@@ -86,33 +102,15 @@ void processSerialCommand() {
         uid.trim();
         authManager.eraseAndDeleteCard(uid);
     }
-    else if (command.equalsIgnoreCase("help")) {
-        printWelcomeMessage();
-    }
     else if (command.equalsIgnoreCase("reset")) {
         authManager.resetAll();
+    }
+    else if (command.equalsIgnoreCase("help")) {
+        printWelcomeMessage();
     }
     else {
         Serial.println("Unknown command. Type 'help' for available commands.");
     }
-}
-
-void printWelcomeMessage() {
-    Serial.println("\n=================================");
-    Serial.println("    Door Access System Ready    ");
-    Serial.println("=================================");
-    Serial.println("Commands:");
-    Serial.println("  reg         - Register new card (with timeout)");
-    Serial.println("  list        - List all cards");
-    Serial.println("  del <UID>   - Delete card");
-    Serial.println("  erase <UID> - Erase card key and delete");
-    Serial.println("  reset       - Reset all authenticators");
-    Serial.println("  help        - Show this help");
-    Serial.println("=================================");
-    Serial.println("Authentication methods:");
-    Serial.println("  - NFC card authentication");
-    Serial.println("  - Manual trigger (pin " + String(MANUAL_TRIGGER_PIN) + ")");
-    Serial.println("=================================");
 }
 
 // =============================================================================
@@ -158,12 +156,10 @@ void setup() {
 
     // 启动指示
     pinMode(LED_PIN, OUTPUT);
-    for (int i = 0; i < 3; i++) {
-        digitalWrite(LED_PIN, HIGH);
-        delay(100);
-        digitalWrite(LED_PIN, LOW);
-        delay(100);
-    }
+    digitalWrite(LED_PIN, HIGH);
+    delay(500);
+    digitalWrite(LED_PIN, LOW);
+    delay(100);
 
     // 初始化系统
     if (!initializeSystem()) {
