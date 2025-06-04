@@ -1,10 +1,10 @@
 #ifndef NFCAUTHENTICATOR_H
 #define NFCAUTHENTICATOR_H
 
-#include "IAuthenticator.h"
+#include "../interfaces/IAuthenticator.h"
 #include "../data/CardDatabase.h"
 #include "../utils/Utils.h"
-#include "../nfc/NFCCoordinator.h"
+#include "../nfc/NFCManager.h"
 
 /**
  * NFC认证器
@@ -12,7 +12,7 @@
  */
 class NFCAuthenticator : public IAuthenticator {
 private:
-    NFCCoordinator* nfcCoordinator;
+    NFCManager* nfcManager;
     CardDatabase* cardDatabase;
     
     // MIFARE Classic 配置
@@ -50,10 +50,10 @@ private:
 public:
     /**
      * 构造函数
-     * @param coordinator NFC协调器指针
+     * @param manager NFC管理器指针
      * @param db 卡片数据库指针
      */
-    NFCAuthenticator(NFCCoordinator* coordinator, CardDatabase* db);
+    NFCAuthenticator(NFCManager* manager, CardDatabase* db);
     
     /**
      * 初始化NFC认证器

@@ -1,25 +1,25 @@
 #include "NFCAuthenticator.h"
 
-NFCAuthenticator::NFCAuthenticator(NFCCoordinator* coordinator, CardDatabase* db)
-    : nfcCoordinator(coordinator), cardDatabase(db), lastCardTime(0), lastCardUID("") {
+NFCAuthenticator::NFCAuthenticator(NFCManager* manager, CardDatabase* db)
+    : nfcManager(manager), cardDatabase(db), lastCardTime(0), lastCardUID("") {
 }
 
 bool NFCAuthenticator::initialize() {
-    // NFC协调器已经初始化了PN532
+    // NFC管理器已经初始化了PN532
     Serial.println("NFC: Authenticator initialized");
     return true;
 }
 
 bool NFCAuthenticator::readCardUID(uint8_t* uid, uint8_t* uidLen) {
-    return nfcCoordinator->readCardUID(uid, uidLen);
+    return nfcManager->readCardUID(uid, uidLen);
 }
 
 bool NFCAuthenticator::authenticateBlock(uint8_t* uid, uint8_t uidLen, uint8_t blockNumber, uint8_t* key) {
-    return nfcCoordinator->authenticateBlock(uid, uidLen, blockNumber, key);
+    return nfcManager->authenticateBlock(uid, uidLen, blockNumber, key);
 }
 
 void NFCAuthenticator::startNFCListening() {
-    // 由NFC协调器处理
+    // 由NFC管理器处理
 }
 
 bool NFCAuthenticator::handleCardAuthentication(uint8_t* uid, uint8_t uidLength) {
@@ -59,17 +59,11 @@ bool NFCAuthenticator::handleCardAuthentication(uint8_t* uid, uint8_t uidLength)
 }
 
 bool NFCAuthenticator::hasAuthenticationRequest() {
-    // 只在认证模式下响应
-    if (nfcCoordinator->getCurrentMode() != NFCCoordinator::MODE_AUTHENTICATION) {
-        return false;
-    }
+    // 使用新的NFCManager检测卡片
+    NFCManager::CardDetectionResult result = nfcManager->detectCard();
 
-    // 如果卡片持续在场，不发送认证请求（避免重复的ACCESS DENIED消息）
-    if (nfcCoordinator->isCardPersistentlyPresent()) {
-        return false;
-    }
-
-    return nfcCoordinator->hasCardDetected();
+    // 只有检测到新卡片时才返回true
+    return result == NFCManager::CARD_DETECTED;
 }
 
 bool NFCAuthenticator::authenticate() {
@@ -77,7 +71,7 @@ bool NFCAuthenticator::authenticate() {
     uint8_t uidLength = 0;
 
     // 读取卡片UID
-    if (nfcCoordinator->readCardUID(uid, &uidLength)) {
+    if (nfcManager->readCardUID(uid, &uidLength)) {
         return handleCardAuthentication(uid, uidLength);
     }
 

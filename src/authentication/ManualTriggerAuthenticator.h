@@ -1,7 +1,7 @@
 #ifndef MANUALTRIGGERAUTHENTICATOR_H
 #define MANUALTRIGGERAUTHENTICATOR_H
 
-#include "IAuthenticator.h"
+#include "../interfaces/IAuthenticator.h"
 
 /**
  * 手动触发认证器

@@ -1,15 +1,15 @@
-#include "NFCCardManagerImpl.h"
+#include "NFCCardManager.h"
 #include <vector>
 
-NFCCardManagerImpl::NFCCardManagerImpl(NFCCoordinator* coordinator, CardDatabase* db,
-                                       FileSystemManager* fsManager, DoorAccessExecutor* executor)
-    : nfcCoordinator(coordinator), cardDatabase(db), fileSystemManager(fsManager), doorExecutor(executor),
+NFCCardManager::NFCCardManager(NFCManager* manager, CardDatabase* db,
+                               FileSystemManager* fsManager, DoorAccessExecutor* executor)
+    : nfcManager(manager), cardDatabase(db), fileSystemManager(fsManager), doorExecutor(executor),
       currentState(NFC_IDLE), currentOperation(OP_NONE),
       operationCompleted(false), operationSuccess(false), operationStartTime(0),
       lastOperationTime(0) {
 }
 
-bool NFCCardManagerImpl::registerNew() {
+bool NFCCardManager::registerNew() {
     if (currentState != NFC_IDLE) {
         Serial.println("Card Manager: Operation already in progress");
         return false;
@@ -17,11 +17,8 @@ bool NFCCardManagerImpl::registerNew() {
 
     Serial.println("Card Manager: Tap new card to register (10s timeout)");
 
-    // 请求进入管理模式
-    if (!nfcCoordinator->requestManagementMode()) {
-        Serial.println("Card Manager: Failed to enter management mode");
-        return false;
-    }
+    // 注意：新架构中管理模式由SystemCoordinator控制
+    // 这里不需要请求管理模式，因为调用此函数时已经在管理状态
 
     // 进入注册状态
     currentState = NFC_REGISTERING;
@@ -31,7 +28,7 @@ bool NFCCardManagerImpl::registerNew() {
     return true;
 }
 
-bool NFCCardManagerImpl::deleteItem(const String& uid) {
+bool NFCCardManager::deleteItem(const String& uid) {
     if (uid.length() == 0) {
         Serial.println("Usage: del <UID>");
         return false;
@@ -52,7 +49,7 @@ bool NFCCardManagerImpl::deleteItem(const String& uid) {
     }
 }
 
-bool NFCCardManagerImpl::eraseAndDeleteItem(const String& uid) {
+bool NFCCardManager::eraseAndDeleteItem(const String& uid) {
     if (uid.length() == 0) {
         Serial.println("Usage: erase <UID>");
         return false;
@@ -71,11 +68,8 @@ bool NFCCardManagerImpl::eraseAndDeleteItem(const String& uid) {
 
     Serial.println("Card Manager: Tap card " + uid + " to erase (10s timeout)");
 
-    // 请求进入管理模式
-    if (!nfcCoordinator->requestManagementMode()) {
-        Serial.println("Card Manager: Failed to enter management mode");
-        return false;
-    }
+    // 注意：新架构中管理模式由SystemCoordinator控制
+    // 这里不需要请求管理模式，因为调用此函数时已经在管理状态
 
     // 进入擦除状态
     currentState = NFC_ERASING;
@@ -86,7 +80,7 @@ bool NFCCardManagerImpl::eraseAndDeleteItem(const String& uid) {
     return true;
 }
 
-void NFCCardManagerImpl::listRegisteredItems() {
+void NFCCardManager::listRegisteredItems() {
     Serial.println("=== Registered Cards ===");
     JsonArray cards = cardDatabase->getCards();
 
@@ -103,11 +97,11 @@ void NFCCardManagerImpl::listRegisteredItems() {
     Serial.println("========================");
 }
 
-bool NFCCardManagerImpl::hasOngoingOperation() {
+bool NFCCardManager::hasOngoingOperation() {
     return currentState != NFC_IDLE;
 }
 
-void NFCCardManagerImpl::handleOperations() {
+void NFCCardManager::handleOperations() {
     if (currentState == NFC_IDLE) {
         return;
     }
@@ -152,44 +146,45 @@ void NFCCardManagerImpl::handleOperations() {
     }
 }
 
-void NFCCardManagerImpl::reset() {
+void NFCCardManager::reset() {
     resetOperationState();
     lastOperationTime = 0;
     lastCardUID = "";
 }
 
-bool NFCCardManagerImpl::startOperationListening() {
-    // NFC协调器已经处理了被动检测
+bool NFCCardManager::startOperationListening() {
+    // NFC管理器已经处理了被动检测
     Serial.println("Card Manager: Waiting for card...");
     currentState = NFC_DETECTING;
     return true;
 }
 
-void NFCCardManagerImpl::handleOperationTimeout() {
+void NFCCardManager::handleOperationTimeout() {
     Serial.println("Card Manager: Operation timeout");
     resetOperationState();
 }
 
-void NFCCardManagerImpl::handleCardDetection() {
+void NFCCardManager::handleCardDetection() {
     if (currentState == NFC_DETECTING) {
-        // 使用NFC协调器检查卡片
-        if (nfcCoordinator->hasCardDetectedForManagement()) {
-            Serial.println("Card Manager: Card detected via coordinator");
+        // 使用新的NFCManager检查卡片
+        NFCManager::CardDetectionResult result = nfcManager->detectCard();
+        if (result == NFCManager::CARD_DETECTED) {
+            Serial.println("Card Manager: Card detected via NFCManager");
             currentState = NFC_CARD_PRESENT;
         }
     }
 }
 
-void NFCCardManagerImpl::processRegistration() {
+void NFCCardManager::processRegistration() {
     if (currentState != NFC_CARD_PRESENT) {
         return;
     }
 
     uint8_t uid[7];
     uint8_t uidLength;
-    
+
     // 读取卡片UID
-    if (!nfcCoordinator->readCardUID(uid, &uidLength)) {
+    if (!nfcManager->readCardUID(uid, &uidLength)) {
         Serial.println("Card Manager: Failed to read card UID");
         resetOperationState();
         return;
@@ -231,16 +226,16 @@ void NFCCardManagerImpl::processRegistration() {
     }
 }
 
-void NFCCardManagerImpl::processErasure() {
+void NFCCardManager::processErasure() {
     if (currentState != NFC_CARD_PRESENT) {
         return;
     }
 
     uint8_t uid[7];
     uint8_t uidLength;
-    
+
     // 读取卡片UID
-    if (!nfcCoordinator->readCardUID(uid, &uidLength)) {
+    if (!nfcManager->readCardUID(uid, &uidLength)) {
         Serial.println("Card Manager: Failed to read card UID");
         resetOperationState();
         return;
@@ -269,15 +264,15 @@ void NFCCardManagerImpl::processErasure() {
     }
 }
 
-bool NFCCardManagerImpl::authenticateCard(uint8_t* uid, uint8_t uidLength, uint8_t* key) {
+bool NFCCardManager::authenticateCard(uint8_t* uid, uint8_t uidLength, uint8_t* key) {
     // 使用密钥认证扇区
-    if (!nfcCoordinator->authenticateBlock(uid, uidLength, AUTH_BLOCK, key)) {
+    if (!nfcManager->authenticateBlock(uid, uidLength, AUTH_BLOCK, key)) {
         return false;
     }
     return true;
 }
 
-bool NFCCardManagerImpl::writeKeyToCard(uint8_t* uid, uint8_t uidLength, uint8_t* newKey) {
+bool NFCCardManager::writeKeyToCard(uint8_t* uid, uint8_t uidLength, uint8_t* newKey) {
     // 使用默认密钥尝试认证
     uint8_t defaultKey[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -296,7 +291,7 @@ bool NFCCardManagerImpl::writeKeyToCard(uint8_t* uid, uint8_t uidLength, uint8_t
     memcpy(trailerData + 10, newKey, 6); // Key B
 
     // 写入扇区尾部
-    if (!nfcCoordinator->writeDataBlock(SECTOR_TRAILER_BLOCK, trailerData)) {
+    if (!nfcManager->writeDataBlock(SECTOR_TRAILER_BLOCK, trailerData)) {
         Serial.println("Card Manager: Failed to write sector trailer");
         return false;
     }
@@ -304,7 +299,7 @@ bool NFCCardManagerImpl::writeKeyToCard(uint8_t* uid, uint8_t uidLength, uint8_t
     return true;
 }
 
-bool NFCCardManagerImpl::eraseKeyFromCard(uint8_t* uid, uint8_t uidLength) {
+bool NFCCardManager::eraseKeyFromCard(uint8_t* uid, uint8_t uidLength) {
     // 获取卡片的当前密钥
     String uidString = Utils::uidToString(uid, uidLength);
     String keyHex;
@@ -312,8 +307,6 @@ bool NFCCardManagerImpl::eraseKeyFromCard(uint8_t* uid, uint8_t uidLength) {
         Serial.println("Card Manager: Card not found in database");
         return false;
     }
-
-
 
     uint8_t currentKey[6];
     Utils::hexStringToKey(keyHex, currentKey);
@@ -334,7 +327,7 @@ bool NFCCardManagerImpl::eraseKeyFromCard(uint8_t* uid, uint8_t uidLength) {
     memcpy(trailerData + 10, defaultKey, 6); // Key B
 
     // 写入扇区尾部
-    if (!nfcCoordinator->writeDataBlock(SECTOR_TRAILER_BLOCK, trailerData)) {
+    if (!nfcManager->writeDataBlock(SECTOR_TRAILER_BLOCK, trailerData)) {
         Serial.println("Card Manager: Failed to restore default key");
         return false;
     }
@@ -342,13 +335,13 @@ bool NFCCardManagerImpl::eraseKeyFromCard(uint8_t* uid, uint8_t uidLength) {
     return true;
 }
 
-void NFCCardManagerImpl::generateRandomKey(uint8_t* key) {
+void NFCCardManager::generateRandomKey(uint8_t* key) {
     for (int i = 0; i < 6; i++) {
         key[i] = random(0, 256);
     }
 }
 
-void NFCCardManagerImpl::resetOperationState() {
+void NFCCardManager::resetOperationState() {
     currentState = NFC_IDLE;
     currentOperation = OP_NONE;
     operationCompleted = false;
@@ -356,10 +349,10 @@ void NFCCardManagerImpl::resetOperationState() {
     operationStartTime = 0;
     targetUID = "";
 
-    // 退出管理模式
-    nfcCoordinator->exitManagementMode();
+    // 注意：新架构中管理模式由SystemCoordinator控制
+    // 这里不需要退出管理模式
 }
 
-const char* NFCCardManagerImpl::getName() const {
+const char* NFCCardManager::getName() const {
     return "NFC Card Manager";
 }

@@ -1,19 +1,19 @@
-#ifndef NFCCARDMANAGERIMPL_H
-#define NFCCARDMANAGERIMPL_H
+#ifndef NFCCARDMANAGER_H
+#define NFCCARDMANAGER_H
 
-#include "../management/IManagementOperation.h"
+#include "../interfaces/IManagementOperation.h"
 #include "../data/CardDatabase.h"
 #include "../data/FileSystemManager.h"
 #include "../execution/DoorAccessExecutor.h"
 #include "../utils/Utils.h"
-#include "../nfc/NFCCoordinator.h"
+#include "../nfc/NFCManager.h"
 
 /**
- * NFC卡片管理器实现
+ * NFC卡片管理器
  * 专门负责NFC卡片的注册、删除、擦除等管理操作
  * 与认证功能完全分离
  */
-class NFCCardManagerImpl : public IManagementOperation {
+class NFCCardManager : public IManagementOperation {
 public:
     // 操作类型枚举
     enum OperationType {
@@ -23,7 +23,7 @@ public:
     };
 
 private:
-    NFCCoordinator* nfcCoordinator;
+    NFCManager* nfcManager;
     CardDatabase* cardDatabase;
     FileSystemManager* fileSystemManager;
     DoorAccessExecutor* doorExecutor;
@@ -75,13 +75,13 @@ private:
 public:
     /**
      * 构造函数
-     * @param coordinator NFC协调器指针
+     * @param manager NFC管理器指针
      * @param db 卡片数据库指针
      * @param fsManager 文件系统管理器指针
      * @param executor 门禁执行器指针
      */
-    NFCCardManagerImpl(NFCCoordinator* coordinator, CardDatabase* db,
-                       FileSystemManager* fsManager, DoorAccessExecutor* executor);
+    NFCCardManager(NFCManager* manager, CardDatabase* db,
+                   FileSystemManager* fsManager, DoorAccessExecutor* executor);
 
     // IManagementOperation接口实现
     bool registerNew() override;
@@ -100,4 +100,4 @@ public:
     void listRegisteredCards() { listRegisteredItems(); }
 };
 
-#endif // NFCCARDMANAGERIMPL_H
+#endif // NFCCARDMANAGER_H

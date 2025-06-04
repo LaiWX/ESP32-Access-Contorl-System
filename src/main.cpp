@@ -1,26 +1,25 @@
-// Door Access System using ESP32, PN532, and MIFARE Classic
-// Modularized version with authentication and execution components
-// Features:
-// 1. NFC authentication with automatic card detection
-// 2. Manual trigger authentication via pin falling edge
-// 3. Modular design with abstract interfaces
-// 4. Anti-replay protection and cooldown mechanisms
+// Improved Door Access System using ESP32, PN532, and MIFARE Classic
+// Features improved OOP architecture with state machine coordinator
+// Key improvements:
+// 1. State machine coordinator ensures mutual exclusion between authentication and management
+// 2. Improved NFC wrapper that handles startPassiveDetection() and IRQ logic properly
+// 3. Better separation of concerns following OOP principles
 
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_PN532.h>
 
-// 模块化组件
-#include "access/AccessControlManager.h"
+// 改进的模块化组件
+#include "system/SystemCoordinator.h"
 #include "authentication/NFCAuthenticator.h"
 #include "authentication/ManualTriggerAuthenticator.h"
-#include "authentication/NFCCardManagerImpl.h"
+#include "card_management/NFCCardManager.h"
 #include "execution/DoorAccessExecutor.h"
 #include "execution/LEDExecutor.h"
 #include "execution/BuzzerExecutor.h"
 #include "execution/ServoExecutor.h"
-#include "nfc/NFCCoordinator.h"
+#include "nfc/NFCManager.h"
 #include "data/CardDatabase.h"
 #include "data/FileSystemManager.h"
 #include "utils/Utils.h"
@@ -54,8 +53,8 @@ Adafruit_PN532 nfc(PN532_IRQ, PN532_RESET);
 CardDatabase cardDatabase;
 FileSystemManager fileSystemManager(&cardDatabase);
 
-// NFC协调器
-NFCCoordinator nfcCoordinator(&nfc, PN532_IRQ, PN532_RESET);
+// NFC管理器（新的封装层）
+NFCManager nfcManager(&nfc, PN532_IRQ, PN532_RESET);
 
 // 执行器
 LEDExecutor ledExecutor(LED_PIN);
@@ -63,22 +62,27 @@ BuzzerExecutor buzzerExecutor(BUZZER_PIN);
 ServoExecutor servoExecutor(SERVO_PIN);
 DoorAccessExecutor doorExecutor(&ledExecutor, &buzzerExecutor, &servoExecutor);
 
-// 认证器
-NFCAuthenticator nfcAuth(&nfcCoordinator, &cardDatabase);
+// 认证器（使用新的NFCManager）
+NFCAuthenticator nfcAuth(&nfcManager, &cardDatabase);
 ManualTriggerAuthenticator manualAuth(MANUAL_TRIGGER_PIN);
 
-// 卡片管理器
-NFCCardManagerImpl cardManager(&nfcCoordinator, &cardDatabase, &fileSystemManager, &doorExecutor);
+// 卡片管理器（使用新的NFCManager）
+NFCCardManager cardManager(&nfcManager, &cardDatabase, &fileSystemManager, &doorExecutor);
 
-// 门禁控制管理器
-AccessControlManager accessControl(&doorExecutor);
+// 系统协调器（新的状态机协调器）
+SystemCoordinator systemCoordinator(&doorExecutor);
 
 // =============================================================================
 // 串口主界面
 // =============================================================================
 void printWelcomeMessage() {
     Serial.println("\n=================================");
-    Serial.println("    Door Access System Ready    ");
+    Serial.println("  Improved Door Access System   ");
+    Serial.println("=================================");
+    Serial.println("Architecture improvements:");
+    Serial.println("  - State machine coordinator");
+    Serial.println("  - Mutual exclusion between auth/mgmt");
+    Serial.println("  - Improved NFC wrapper");
     Serial.println("=================================");
     Serial.println("Commands:");
     Serial.println("  card:register       - Register new card");
@@ -102,14 +106,14 @@ void processSerialCommand() {
     command.trim();
 
     if (command.equalsIgnoreCase("reset")) {
-        accessControl.resetAll();
+        systemCoordinator.resetAll();
     }
     else if (command.equalsIgnoreCase("help")) {
         printWelcomeMessage();
     }
     else if (command.indexOf(':') != -1) {
         // 新的命令格式：type:action[:param]
-        if (!accessControl.executeManagementCommand(command)) {
+        if (!systemCoordinator.requestManagementState(command)) {
             Serial.println("Command failed. Type 'help' for available commands.");
         }
     }
@@ -124,14 +128,14 @@ void processSerialCommand() {
 // 初始化函数
 // =============================================================================
 bool initializeSystem() {
-    Serial.println("Initializing Door Access System...");
+    Serial.println("Initializing Improved Door Access System...");
 
-    // 初始化NFC协调器
-    if (!nfcCoordinator.initialize()) {
-        Serial.println("Failed to initialize NFC coordinator");
+    // 初始化NFC管理器
+    if (!nfcManager.initialize()) {
+        Serial.println("Failed to initialize NFC manager");
         return false;
     }
-    Serial.println("NFC coordinator initialized");
+    Serial.println("NFC manager initialized");
 
     // 初始化文件系统
     if (!fileSystemManager.initialize()) {
@@ -140,16 +144,16 @@ bool initializeSystem() {
     }
     Serial.println("File system initialized");
 
-    // 添加认证器到门禁控制管理器
-    accessControl.addAuthenticator(&nfcAuth);
-    accessControl.addAuthenticator(&manualAuth);
+    // 添加认证器到系统协调器
+    systemCoordinator.addAuthenticator(&nfcAuth);
+    systemCoordinator.addAuthenticator(&manualAuth);
 
     // 添加管理操作
-    accessControl.addManagementOperation("card", &cardManager);
+    systemCoordinator.addManagementOperation("card", &cardManager);
 
-    // 初始化门禁控制管理器
-    if (!accessControl.initialize()) {
-        Serial.println("Failed to initialize access control manager");
+    // 初始化系统协调器
+    if (!systemCoordinator.initialize()) {
+        Serial.println("Failed to initialize system coordinator");
         return false;
     }
 
@@ -190,14 +194,8 @@ void loop() {
         processSerialCommand();
     }
 
-    // 处理NFC协调器
-    nfcCoordinator.handleNFC();
-
-    // 处理认证请求
-    accessControl.handleAuthentication();
-
-    // 处理管理操作
-    accessControl.handleManagementOperations();
+    // 主循环由系统协调器处理（状态机）
+    systemCoordinator.handleLoop();
 
     // 小延迟防止CPU过度使用
     delay(10);
