@@ -4,9 +4,12 @@
 #include "../interfaces/IManagementOperation.h"
 #include "../data/CardDatabase.h"
 #include "../data/FileSystemManager.h"
-#include "../execution/DoorAccessExecutor.h"
 #include "../utils/Utils.h"
 #include "../nfc/NFCManager.h"
+#include <vector>
+
+// 前向声明
+class IActionExecutor;
 
 /**
  * NFC卡片管理器
@@ -26,7 +29,9 @@ private:
     NFCManager* nfcManager;
     CardDatabase* cardDatabase;
     FileSystemManager* fileSystemManager;
-    DoorAccessExecutor* doorExecutor;
+
+    // 执行器集合（模仿认证器的方式）
+    std::vector<IActionExecutor*> feedbackExecutors;
     
     // MIFARE Classic 配置
     static const uint8_t SECTOR_TRAILER_BLOCK = 7;
@@ -77,10 +82,24 @@ public:
      * @param manager NFC管理器指针
      * @param db 卡片数据库指针
      * @param fsManager 文件系统管理器指针
-     * @param executor 门禁执行器指针
      */
-    NFCCardManager(NFCManager* manager, CardDatabase* db,
-                   FileSystemManager* fsManager, DoorAccessExecutor* executor);
+    NFCCardManager(NFCManager* manager, CardDatabase* db, FileSystemManager* fsManager);
+
+    /**
+     * 添加反馈执行器
+     * @param executor 执行器指针
+     */
+    void addFeedbackExecutor(IActionExecutor* executor);
+
+    /**
+     * 执行成功反馈
+     */
+    void executeSuccessFeedback();
+
+    /**
+     * 执行失败反馈
+     */
+    void executeFailureFeedback();
 
     // IManagementOperation接口实现
     bool registerNew() override;

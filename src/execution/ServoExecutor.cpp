@@ -1,55 +1,117 @@
 #include "ServoExecutor.h"
 
-ServoExecutor::ServoExecutor(int pin) 
-    : servoPin(pin), actionStartTime(0), doorIsOpen(false), actionInProgress(false) {
+ServoExecutor::ServoExecutor(int pin)
+    : servoPin(pin), isExecuting_(false), taskHandle(nullptr), doorIsOpen(false) {
+}
+
+ServoExecutor::~ServoExecutor() {
+    stopExecution();
 }
 
 bool ServoExecutor::initialize() {
     pinMode(servoPin, OUTPUT);
-    
+
     // 初始化为关门状态
     setServoAngle(DOOR_CLOSED_ANGLE);
     doorIsOpen = false;
-    actionInProgress = false;
-    
-    Serial.print("Servo initialized on pin ");
+
+    Serial.print("Servo Executor initialized on pin ");
     Serial.println(servoPin);
-    
+
     return true;
 }
 
+void ServoExecutor::executeSuccessAction() {
+    if (isExecuting_) {
+        stopExecution();
+    }
+
+    Serial.println("Servo Executor: Starting success action (async) - Opening door");
+    isExecuting_ = true;
+
+    // 创建FreeRTOS任务
+    xTaskCreate(
+        servoTaskFunction,
+        "ServoTask",
+        2048,
+        this,
+        1,
+        &taskHandle
+    );
+}
+
+void ServoExecutor::executeFailureAction() {
+    // 失败时不执行任何动作
+    Serial.println("Servo Executor: Failure action - No door operation");
+}
+
+bool ServoExecutor::isExecuting() const {
+    return isExecuting_;
+}
+
+void ServoExecutor::stopExecution() {
+    if (taskHandle != nullptr) {
+        vTaskDelete(taskHandle);
+        taskHandle = nullptr;
+    }
+    isExecuting_ = false;
+    // 确保门关闭
+    setServoAngle(DOOR_CLOSED_ANGLE);
+    doorIsOpen = false;
+    Serial.println("Servo Executor: Execution stopped");
+}
+
+const char* ServoExecutor::getName() const {
+    return "Servo Executor";
+}
+
+// 静态任务函数
+void ServoExecutor::servoTaskFunction(void* parameter) {
+    ServoExecutor* executor = static_cast<ServoExecutor*>(parameter);
+    executor->performOpenDoorSequence();
+
+    // 任务完成，清理状态
+    executor->isExecuting_ = false;
+    executor->taskHandle = nullptr;
+
+    Serial.println("Servo Executor: Action completed");
+
+    // 删除任务
+    vTaskDelete(nullptr);
+}
+
+void ServoExecutor::performOpenDoorSequence() {
+    // 开门
+    Serial.println("Servo: Opening door");
+    setServoAngle(DOOR_OPEN_ANGLE);
+    doorIsOpen = true;
+
+    // 等待指定时间
+    vTaskDelay(pdMS_TO_TICKS(DOOR_OPEN_DURATION));
+
+    // 自动关门
+    Serial.println("Servo: Auto-closing door");
+    setServoAngle(DOOR_CLOSED_ANGLE);
+    doorIsOpen = false;
+}
+
+// 兼容性方法
 void ServoExecutor::openDoor() {
-    if (!actionInProgress) {
-        Serial.println("Servo: Opening door");
+    if (!isExecuting_) {
+        Serial.println("Servo: Opening door (compatibility mode)");
         setServoAngle(DOOR_OPEN_ANGLE);
         doorIsOpen = true;
-        actionInProgress = true;
-        actionStartTime = millis();
     }
 }
 
 void ServoExecutor::closeDoor() {
-    Serial.println("Servo: Closing door");
+    Serial.println("Servo: Closing door (compatibility mode)");
     setServoAngle(DOOR_CLOSED_ANGLE);
     doorIsOpen = false;
-    actionInProgress = false;
-}
-
-void ServoExecutor::handleServo() {
-    // 自动关门逻辑
-    if (doorIsOpen && actionInProgress) {
-        if (millis() - actionStartTime >= DOOR_OPEN_DURATION) {
-            closeDoor();
-        }
-    }
 }
 
 bool ServoExecutor::isDoorOpen() const {
     return doorIsOpen;
-}
-
-bool ServoExecutor::isActionInProgress() const {
-    return actionInProgress;
 }
 
 void ServoExecutor::setServoAngle(int angle) {

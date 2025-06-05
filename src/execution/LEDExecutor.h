@@ -2,69 +2,86 @@
 #define LEDEXECUTOR_H
 
 #include "../interfaces/IActionExecutor.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 /**
  * LED执行器
- * 使用LED闪烁来表示不同的动作状态（调试用）
+ * 使用LED闪烁来表示不同的动作状态
+ * 重构后支持异步执行，只提供成功/失败两种模式
  */
 class LEDExecutor : public IActionExecutor {
 private:
     int ledPin;
 
-    // 非阻塞闪烁状态
-    bool isBlinking;
-    int blinkCount;
-    int targetBlinkCount;
-    unsigned long lastBlinkTime;
-    unsigned long blinkInterval;
-    bool ledState;
+    // 异步执行状态
+    bool isExecuting_;
+    TaskHandle_t taskHandle;
 
-    /**
-     * LED闪烁函数（阻塞版本）
-     * @param times 闪烁次数
-     * @param delayMs 每次闪烁的延迟时间
-     */
-    void blinkLED(int times, int delayMs);
-    
+    // 执行模式
+    enum ExecutionMode {
+        MODE_NONE,
+        MODE_SUCCESS,    // 快速闪烁2次
+        MODE_FAILURE     // 慢速闪烁3次
+    };
+
+    ExecutionMode currentMode;
+
+    // 静态任务函数
+    static void ledTaskFunction(void* parameter);
+
+    // 实际的LED控制逻辑
+    void performSuccessPattern();
+    void performFailurePattern();
+
 public:
     /**
      * 构造函数
      * @param pin LED引脚号
      */
     LEDExecutor(int pin);
-    
+
+    /**
+     * 析构函数
+     */
+    ~LEDExecutor();
+
     /**
      * 初始化LED执行器
      * @return 初始化是否成功
      */
     bool initialize() override;
-    
+
     /**
-     * 执行成功动作（快速闪烁2次）
+     * 执行成功动作（异步）
+     * 快速闪烁2次表示成功
      */
     void executeSuccessAction() override;
-    
+
     /**
-     * 执行失败动作（长闪1次）
+     * 执行失败动作（异步）
+     * 慢速闪烁3次表示失败
      */
     void executeFailureAction() override;
-    
+
     /**
-     * 执行注册成功动作（闪烁3次）
+     * 检查是否正在执行动作
+     * @return 是否正在执行
      */
-    void executeRegistrationSuccessAction() override;
-    
+    bool isExecuting() const override;
+
     /**
-     * 执行删除成功动作（闪烁2次）
+     * 停止当前执行的动作
      */
-    void executeDeletionSuccessAction() override;
-    
+    void stopExecution() override;
+
     /**
      * 获取执行器名称
      * @return 执行器名称
      */
     const char* getName() const override;
 
+    // 兼容性方法（保留用于向后兼容）
     /**
      * 开启LED
      */
@@ -74,29 +91,6 @@ public:
      * 关闭LED
      */
     void turnOff();
-
-    /**
-     * 非阻塞闪烁
-     * @param times 闪烁次数
-     * @param intervalMs 闪烁间隔（毫秒）
-     */
-    void blink(int times, unsigned long intervalMs);
-
-    /**
-     * 处理非阻塞闪烁（在主循环中调用）
-     */
-    void handleBlinking();
-
-    /**
-     * 停止闪烁
-     */
-    void stopBlinking();
-
-    /**
-     * 检查是否正在闪烁
-     * @return 是否正在闪烁
-     */
-    bool isBlinkingActive() const;
 };
 
 #endif // LEDEXECUTOR_H

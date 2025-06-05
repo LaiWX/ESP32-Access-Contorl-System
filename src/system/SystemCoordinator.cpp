@@ -73,11 +73,9 @@ void SystemCoordinator::handleLoop() {
             checkManagementTimeout();
             break;
     }
-    
-    // 处理门禁执行器的时序
-    if (doorExecutor) {
-        doorExecutor->handleActions();
-    }
+
+    // 重构后不再需要处理门禁执行器的时序
+    // 各个执行器现在使用FreeRTOS任务自主管理时序
 }
 
 bool SystemCoordinator::handleCommand(const String& command) {

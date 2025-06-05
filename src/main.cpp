@@ -63,7 +63,7 @@ NFCAuthenticator nfcAuth(&nfcManager, &cardDatabase);
 ManualTriggerAuthenticator manualAuth(MANUAL_TRIGGER_PIN);
 
 // 卡片管理器（使用新的NFCManager）
-NFCCardManager cardManager(&nfcManager, &cardDatabase, &fileSystemManager, &doorExecutor);
+NFCCardManager cardManager(&nfcManager, &cardDatabase, &fileSystemManager);
 
 // 系统协调器（新的状态机协调器）
 SystemCoordinator systemCoordinator(&doorExecutor);
@@ -125,6 +125,10 @@ bool initializeSystem() {
         return false;
     }
     Serial.println("File system initialized");
+
+    // 为卡片管理器添加反馈执行器（只需要LED和蜂鸣器，不需要舵机）
+    cardManager.addFeedbackExecutor(&ledExecutor);
+    cardManager.addFeedbackExecutor(&buzzerExecutor);
 
     // 添加认证器到系统协调器
     systemCoordinator.addAuthenticator(&nfcAuth);

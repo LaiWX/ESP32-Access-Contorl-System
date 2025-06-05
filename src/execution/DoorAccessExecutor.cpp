@@ -4,8 +4,7 @@
 #include "ServoExecutor.h"
 
 DoorAccessExecutor::DoorAccessExecutor(LEDExecutor* led, BuzzerExecutor* buzzer, ServoExecutor* servo)
-    : ledExecutor(led), buzzerExecutor(buzzer), servoExecutor(servo),
-      actionStartTime(0), actionInProgress(false) {
+    : ledExecutor(led), buzzerExecutor(buzzer), servoExecutor(servo) {
 }
 
 bool DoorAccessExecutor::initialize() {
@@ -36,91 +35,71 @@ bool DoorAccessExecutor::initialize() {
 }
 
 void DoorAccessExecutor::executeSuccessAction() {
-    Serial.println("Door Access: Executing success action (OPEN DOOR)");
-    
-    // 协调所有执行器
+    Serial.println("Door Access Executor: Executing success action (OPEN DOOR)");
+
+    // 协调所有执行器执行成功动作
     if (ledExecutor) {
-        ledExecutor->turnOn();
+        ledExecutor->executeSuccessAction();
     }
-    
+
     if (buzzerExecutor) {
-        buzzerExecutor->beepSuccess();
+        buzzerExecutor->executeSuccessAction();
     }
-    
+
     if (servoExecutor) {
-        servoExecutor->openDoor();
+        servoExecutor->executeSuccessAction();
     }
-    
-    actionInProgress = true;
-    actionStartTime = millis();
 }
 
 void DoorAccessExecutor::executeFailureAction() {
-    Serial.println("Door Access: Executing failure action (ACCESS DENIED)");
-    
-    // 协调LED和蜂鸣器（不开门）
-    if (ledExecutor) {
-        ledExecutor->blink(3, 200); // 快速闪烁3次
-    }
-    
-    if (buzzerExecutor) {
-        buzzerExecutor->beepFailure();
-    }
-    
-    // 不操作舵机
-}
+    Serial.println("Door Access Executor: Executing failure action (ACCESS DENIED)");
 
-void DoorAccessExecutor::executeRegistrationSuccessAction() {
-    Serial.println("Door Access: Executing registration success action");
-    
+    // 协调LED和蜂鸣器执行失败动作（不开门）
     if (ledExecutor) {
-        ledExecutor->blink(2, 500); // 慢速闪烁2次
+        ledExecutor->executeFailureAction();
     }
-    
-    if (buzzerExecutor) {
-        buzzerExecutor->beepRegister();
-    }
-}
 
-void DoorAccessExecutor::executeDeletionSuccessAction() {
-    Serial.println("Door Access: Executing deletion success action");
-    
-    if (ledExecutor) {
-        ledExecutor->blink(1, 1000); // 长闪烁1次
-    }
-    
     if (buzzerExecutor) {
-        buzzerExecutor->beepDelete();
+        buzzerExecutor->executeFailureAction();
     }
-}
 
-void DoorAccessExecutor::handleActions() {
-    // 处理各个执行器的时序
-    if (ledExecutor) {
-        ledExecutor->handleBlinking();
-    }
-    
-    if (buzzerExecutor) {
-        buzzerExecutor->handleBeeping();
-    }
-    
+    // 舵机不执行失败动作（不开门）
     if (servoExecutor) {
-        servoExecutor->handleServo();
+        servoExecutor->executeFailureAction();
     }
-    
-    // 处理主动作的时序
-    if (actionInProgress) {
-        unsigned long elapsed = millis() - actionStartTime;
-        
-        // LED持续时间控制
-        if (elapsed >= LED_DURATION && ledExecutor) {
-            ledExecutor->turnOff();
-        }
-        
-        // 检查动作是否完成
-        if (elapsed >= DOOR_OPEN_DURATION) {
-            actionInProgress = false;
-        }
+}
+
+bool DoorAccessExecutor::isExecuting() const {
+    bool anyExecuting = false;
+
+    if (ledExecutor && ledExecutor->isExecuting()) {
+        anyExecuting = true;
+    }
+
+    if (buzzerExecutor && buzzerExecutor->isExecuting()) {
+        anyExecuting = true;
+    }
+
+    if (servoExecutor && servoExecutor->isExecuting()) {
+        anyExecuting = true;
+    }
+
+    return anyExecuting;
+}
+
+void DoorAccessExecutor::stopExecution() {
+    Serial.println("Door Access Executor: Stopping all executions");
+
+    if (ledExecutor) {
+        ledExecutor->stopExecution();
+    }
+
+    if (buzzerExecutor) {
+        buzzerExecutor->stopExecution();
+    }
+
+    if (servoExecutor) {
+        servoExecutor->stopExecution();
     }
 }
 
@@ -130,6 +109,10 @@ LEDExecutor* DoorAccessExecutor::getLEDExecutor() const {
 
 BuzzerExecutor* DoorAccessExecutor::getBuzzerExecutor() const {
     return buzzerExecutor;
+}
+
+ServoExecutor* DoorAccessExecutor::getServoExecutor() const {
+    return servoExecutor;
 }
 
 const char* DoorAccessExecutor::getName() const {

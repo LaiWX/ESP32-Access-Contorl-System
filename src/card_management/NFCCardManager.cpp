@@ -1,11 +1,37 @@
 #include "NFCCardManager.h"
+#include "../interfaces/IActionExecutor.h"
 
-NFCCardManager::NFCCardManager(NFCManager* manager, CardDatabase* db,
-                               FileSystemManager* fsManager, DoorAccessExecutor* executor)
-    : nfcManager(manager), cardDatabase(db), fileSystemManager(fsManager), doorExecutor(executor),
+NFCCardManager::NFCCardManager(NFCManager* manager, CardDatabase* db, FileSystemManager* fsManager)
+    : nfcManager(manager), cardDatabase(db), fileSystemManager(fsManager),
       currentState(NFC_IDLE), currentOperation(OP_NONE),
       operationCompleted(false), operationSuccess(false), operationJustCompleted(false),
       operationStartTime(0), lastOperationTime(0) {
+}
+
+void NFCCardManager::addFeedbackExecutor(IActionExecutor* executor) {
+    if (executor) {
+        feedbackExecutors.push_back(executor);
+        Serial.print("NFCCardManager: Added feedback executor: ");
+        Serial.println(executor->getName());
+    }
+}
+
+void NFCCardManager::executeSuccessFeedback() {
+    Serial.println("NFCCardManager: Executing success feedback");
+    for (auto* executor : feedbackExecutors) {
+        if (executor) {
+            executor->executeSuccessAction();
+        }
+    }
+}
+
+void NFCCardManager::executeFailureFeedback() {
+    Serial.println("NFCCardManager: Executing failure feedback");
+    for (auto* executor : feedbackExecutors) {
+        if (executor) {
+            executor->executeFailureAction();
+        }
+    }
 }
 
 bool NFCCardManager::registerNew() {
@@ -36,14 +62,19 @@ bool NFCCardManager::deleteItem(const String& uid) {
     if (cardDatabase->removeCard(uid)) {
         if (fileSystemManager->saveCards()) {
             Serial.println("Deleted " + uid);
-            doorExecutor->executeDeletionSuccessAction();
+            // 删除成功只需要LED和蜂鸣器反馈，不需要开门
+            executeSuccessFeedback();
             return true;
         } else {
             Serial.println("Failed to save changes to file system");
+            // 保存失败时给出失败反馈
+            executeFailureFeedback();
             return false;
         }
     } else {
         Serial.println("Card not found: " + uid);
+        // 卡片未找到时给出失败反馈
+        executeFailureFeedback();
         return false;
     }
 }
@@ -137,17 +168,26 @@ void NFCCardManager::handleOperations() {
             // 保存到文件系统
             if (fileSystemManager->saveCards()) {
                 if (currentOperation == OP_REGISTER) {
-                    doorExecutor->executeRegistrationSuccessAction();
+                    Serial.println("Card registration completed successfully");
+                    // 注册成功只需要LED和蜂鸣器反馈，不需要开门
+                    executeSuccessFeedback();
                 } else if (currentOperation == OP_ERASE) {
                     // 从数据库删除卡片
                     if (cardDatabase->removeCard(targetUID)) {
                         Serial.println("Card " + targetUID + " deleted from database");
                     }
-                    doorExecutor->executeDeletionSuccessAction();
+                    Serial.println("Card erase completed successfully");
+                    // 擦除成功只需要LED和蜂鸣器反馈，不需要开门
+                    executeSuccessFeedback();
                 }
             } else {
                 Serial.println("Failed to save changes to file system");
+                // 保存失败时给出失败反馈
+                executeFailureFeedback();
             }
+        } else {
+            // 操作失败时给出失败反馈
+            executeFailureFeedback();
         }
 
         // 设置操作刚刚完成的标志

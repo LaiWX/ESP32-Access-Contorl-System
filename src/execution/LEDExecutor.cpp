@@ -1,103 +1,134 @@
 #include "LEDExecutor.h"
 
-LEDExecutor::LEDExecutor(int pin) : ledPin(pin), isBlinking(false), blinkCount(0),
-    targetBlinkCount(0), lastBlinkTime(0), blinkInterval(0), ledState(false) {
+LEDExecutor::LEDExecutor(int pin)
+    : ledPin(pin), isExecuting_(false), taskHandle(nullptr), currentMode(MODE_NONE) {
+}
+
+LEDExecutor::~LEDExecutor() {
+    stopExecution();
 }
 
 bool LEDExecutor::initialize() {
     pinMode(ledPin, OUTPUT);
     digitalWrite(ledPin, LOW);
+    Serial.print("LED Executor initialized on pin ");
+    Serial.println(ledPin);
     return true;
 }
 
-void LEDExecutor::blinkLED(int times, int delayMs) {
-    for (int i = 0; i < times; i++) {
-        digitalWrite(ledPin, HIGH);
-        delay(delayMs);
-        digitalWrite(ledPin, LOW);
-        delay(delayMs);
-    }
-}
-
 void LEDExecutor::executeSuccessAction() {
-    Serial.println("Executing success action (LED)");
-    blinkLED(2, 200); // 快速闪烁2次表示成功
+    if (isExecuting_) {
+        stopExecution();
+    }
 
-    Serial.println("Action completed");
+    Serial.println("LED Executor: Starting success action (async)");
+    currentMode = MODE_SUCCESS;
+    isExecuting_ = true;
+
+    // 创建FreeRTOS任务
+    xTaskCreate(
+        ledTaskFunction,
+        "LEDTask",
+        2048,
+        this,
+        1,
+        &taskHandle
+    );
 }
 
 void LEDExecutor::executeFailureAction() {
-    Serial.println("Executing failure action (LED)");
-    blinkLED(1, 500); // 长闪1次表示失败
+    if (isExecuting_) {
+        stopExecution();
+    }
+
+    Serial.println("LED Executor: Starting failure action (async)");
+    currentMode = MODE_FAILURE;
+    isExecuting_ = true;
+
+    // 创建FreeRTOS任务
+    xTaskCreate(
+        ledTaskFunction,
+        "LEDTask",
+        2048,
+        this,
+        1,
+        &taskHandle
+    );
 }
 
-void LEDExecutor::executeRegistrationSuccessAction() {
-    Serial.println("Executing registration success action (LED)");
-    blinkLED(3, 100); // 闪烁3次表示注册成功
+bool LEDExecutor::isExecuting() const {
+    return isExecuting_;
 }
 
-void LEDExecutor::executeDeletionSuccessAction() {
-    Serial.println("Executing deletion success action (LED)");
-    blinkLED(2, 200); // 闪烁2次表示删除成功
+void LEDExecutor::stopExecution() {
+    if (taskHandle != nullptr) {
+        vTaskDelete(taskHandle);
+        taskHandle = nullptr;
+    }
+    isExecuting_ = false;
+    currentMode = MODE_NONE;
+    digitalWrite(ledPin, LOW);
+    Serial.println("LED Executor: Execution stopped");
 }
 
 const char* LEDExecutor::getName() const {
     return "LED Executor";
 }
 
+// 静态任务函数
+void LEDExecutor::ledTaskFunction(void* parameter) {
+    LEDExecutor* executor = static_cast<LEDExecutor*>(parameter);
+
+    switch (executor->currentMode) {
+        case MODE_SUCCESS:
+            executor->performSuccessPattern();
+            break;
+        case MODE_FAILURE:
+            executor->performFailurePattern();
+            break;
+        default:
+            break;
+    }
+
+    // 任务完成，清理状态
+    executor->isExecuting_ = false;
+    executor->currentMode = MODE_NONE;
+    executor->taskHandle = nullptr;
+    digitalWrite(executor->ledPin, LOW);
+
+    Serial.println("LED Executor: Action completed");
+
+    // 删除任务
+    vTaskDelete(nullptr);
+}
+
+void LEDExecutor::performSuccessPattern() {
+    // 快速闪烁2次表示成功
+    for (int i = 0; i < 2; i++) {
+        digitalWrite(ledPin, HIGH);
+        vTaskDelay(pdMS_TO_TICKS(200));
+        digitalWrite(ledPin, LOW);
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+}
+
+void LEDExecutor::performFailurePattern() {
+    // 慢速闪烁3次表示失败
+    for (int i = 0; i < 3; i++) {
+        digitalWrite(ledPin, HIGH);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        digitalWrite(ledPin, LOW);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
+// 兼容性方法
 void LEDExecutor::turnOn() {
-    stopBlinking(); // 停止任何正在进行的闪烁
+    stopExecution();
     digitalWrite(ledPin, HIGH);
-    ledState = true;
 }
 
 void LEDExecutor::turnOff() {
-    stopBlinking(); // 停止任何正在进行的闪烁
+    stopExecution();
     digitalWrite(ledPin, LOW);
-    ledState = false;
-}
-
-void LEDExecutor::blink(int times, unsigned long intervalMs) {
-    targetBlinkCount = times * 2; // 每次闪烁包括开和关
-    blinkCount = 0;
-    blinkInterval = intervalMs;
-    lastBlinkTime = millis();
-    isBlinking = true;
-
-    // 立即开始第一次闪烁
-    digitalWrite(ledPin, HIGH);
-    ledState = true;
-}
-
-void LEDExecutor::handleBlinking() {
-    if (!isBlinking) {
-        return;
-    }
-
-    unsigned long currentTime = millis();
-    if (currentTime - lastBlinkTime >= blinkInterval) {
-        // 切换LED状态
-        ledState = !ledState;
-        digitalWrite(ledPin, ledState ? HIGH : LOW);
-
-        blinkCount++;
-        lastBlinkTime = currentTime;
-
-        // 检查是否完成所有闪烁
-        if (blinkCount >= targetBlinkCount) {
-            stopBlinking();
-        }
-    }
-}
-
-void LEDExecutor::stopBlinking() {
-    isBlinking = false;
-    blinkCount = 0;
-    targetBlinkCount = 0;
-    digitalWrite(ledPin, LOW);
-    ledState = false;
-}
-
-bool LEDExecutor::isBlinkingActive() const {
-    return isBlinking;
 }

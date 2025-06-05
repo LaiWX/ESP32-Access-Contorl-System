@@ -10,23 +10,14 @@ class ServoExecutor;
 
 /**
  * 门禁主执行器
- * 统一管理门禁系统的所有执行动作
- * 对外只暴露简单的开门/拒绝接口
+ * 重构后作为简单的协调器，不管理时序
+ * 只负责协调各个执行器的动作，具体时序由各执行器自主管理
  */
 class DoorAccessExecutor : public IActionExecutor {
 private:
     LEDExecutor* ledExecutor;
     BuzzerExecutor* buzzerExecutor;
     ServoExecutor* servoExecutor;
-    
-    // 时序控制
-    unsigned long actionStartTime;
-    bool actionInProgress;
-    
-    // 动作持续时间（毫秒）
-    static const unsigned long DOOR_OPEN_DURATION = 3000;  // 3秒
-    static const unsigned long LED_DURATION = 2000;        // 2秒
-    static const unsigned long BUZZER_DURATION = 500;      // 0.5秒
 
 public:
     /**
@@ -44,43 +35,45 @@ public:
     bool initialize() override;
     
     /**
-     * 执行开门动作
-     * 协调LED、蜂鸣器、舵机的动作
+     * 执行成功动作
+     * 协调LED、蜂鸣器、舵机的成功动作
      */
     void executeSuccessAction() override;
-    
+
     /**
-     * 执行拒绝动作
-     * 协调LED、蜂鸣器的动作
+     * 执行失败动作
+     * 协调LED、蜂鸣器的失败动作
      */
     void executeFailureAction() override;
-    
+
     /**
-     * 执行注册成功动作
+     * 检查是否正在执行动作
+     * @return 是否正在执行
      */
-    void executeRegistrationSuccessAction() override;
-    
+    bool isExecuting() const override;
+
     /**
-     * 执行删除成功动作
+     * 停止当前执行的动作
      */
-    void executeDeletionSuccessAction() override;
-    
-    /**
-     * 处理动作时序（在主循环中调用）
-     */
-    void handleActions();
-    
+    void stopExecution() override;
+
     /**
      * 获取LED执行器（供管理操作使用）
      * @return LED执行器指针
      */
     LEDExecutor* getLEDExecutor() const;
-    
+
     /**
      * 获取蜂鸣器执行器（供管理操作使用）
      * @return 蜂鸣器执行器指针
      */
     BuzzerExecutor* getBuzzerExecutor() const;
+
+    /**
+     * 获取舵机执行器（供管理操作使用）
+     * @return 舵机执行器指针
+     */
+    ServoExecutor* getServoExecutor() const;
 
     /**
      * 获取执行器名称

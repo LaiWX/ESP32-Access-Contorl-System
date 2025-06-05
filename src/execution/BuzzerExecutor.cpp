@@ -1,113 +1,162 @@
 #include "BuzzerExecutor.h"
 
-BuzzerExecutor::BuzzerExecutor(int pin) 
-    : buzzerPin(pin), lastBeepTime(0), beepCount(0), targetBeepCount(0), 
-      isBeeping(false), currentMode(BEEP_NONE) {
+BuzzerExecutor::BuzzerExecutor(int pin)
+    : buzzerPin(pin), isExecuting_(false), taskHandle(nullptr), currentMode(MODE_NONE) {
+}
+
+BuzzerExecutor::~BuzzerExecutor() {
+    stopExecution();
 }
 
 bool BuzzerExecutor::initialize() {
     pinMode(buzzerPin, OUTPUT);
     digitalWrite(buzzerPin, LOW);
-    
-    Serial.print("Buzzer initialized on pin ");
+
+    Serial.print("Buzzer Executor initialized on pin ");
     Serial.println(buzzerPin);
-    
+
     return true;
 }
 
-void BuzzerExecutor::beepSuccess() {
-    currentMode = BEEP_SUCCESS;
-    targetBeepCount = 1;
-    beepCount = 0;
-    lastBeepTime = millis();
-    isBeeping = true;
+void BuzzerExecutor::executeSuccessAction() {
+    if (isExecuting_) {
+        stopExecution();
+    }
+
+    Serial.println("Buzzer Executor: Starting success action (async)");
+    currentMode = MODE_SUCCESS;
+    isExecuting_ = true;
+
+    // 创建FreeRTOS任务
+    xTaskCreate(
+        buzzerTaskFunction,
+        "BuzzerTask",
+        2048,
+        this,
+        1,
+        &taskHandle
+    );
+}
+
+void BuzzerExecutor::executeFailureAction() {
+    if (isExecuting_) {
+        stopExecution();
+    }
+
+    Serial.println("Buzzer Executor: Starting failure action (async)");
+    currentMode = MODE_FAILURE;
+    isExecuting_ = true;
+
+    // 创建FreeRTOS任务
+    xTaskCreate(
+        buzzerTaskFunction,
+        "BuzzerTask",
+        2048,
+        this,
+        1,
+        &taskHandle
+    );
+}
+
+bool BuzzerExecutor::isExecuting() const {
+    return isExecuting_;
+}
+
+void BuzzerExecutor::stopExecution() {
+    if (taskHandle != nullptr) {
+        vTaskDelete(taskHandle);
+        taskHandle = nullptr;
+    }
+    isExecuting_ = false;
+    currentMode = MODE_NONE;
+    digitalWrite(buzzerPin, LOW);
+    Serial.println("Buzzer Executor: Execution stopped");
+}
+
+const char* BuzzerExecutor::getName() const {
+    return "Buzzer Executor";
+}
+
+// 静态任务函数
+void BuzzerExecutor::buzzerTaskFunction(void* parameter) {
+    BuzzerExecutor* executor = static_cast<BuzzerExecutor*>(parameter);
+
+    switch (executor->currentMode) {
+        case MODE_SUCCESS:
+            executor->performSuccessPattern();
+            break;
+        case MODE_FAILURE:
+            executor->performFailurePattern();
+            break;
+        default:
+            break;
+    }
+
+    // 任务完成，清理状态
+    executor->isExecuting_ = false;
+    executor->currentMode = MODE_NONE;
+    executor->taskHandle = nullptr;
+    digitalWrite(executor->buzzerPin, LOW);
+
+    Serial.println("Buzzer Executor: Action completed");
+
+    // 删除任务
+    vTaskDelete(nullptr);
+}
+
+void BuzzerExecutor::performSuccessPattern() {
+    // 单次长响表示成功
     digitalWrite(buzzerPin, HIGH);
-    Serial.println("Buzzer: Success beep");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    digitalWrite(buzzerPin, LOW);
+}
+
+void BuzzerExecutor::performFailurePattern() {
+    // 三次短响表示失败
+    for (int i = 0; i < 3; i++) {
+        digitalWrite(buzzerPin, HIGH);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        digitalWrite(buzzerPin, LOW);
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+}
+
+// 兼容性方法
+void BuzzerExecutor::beepDoorOpen() {
+    executeSuccessAction();
 }
 
 void BuzzerExecutor::beepFailure() {
-    currentMode = BEEP_FAILURE;
-    targetBeepCount = 3;
-    beepCount = 0;
-    lastBeepTime = millis();
-    isBeeping = true;
-    digitalWrite(buzzerPin, HIGH);
-    Serial.println("Buzzer: Failure beep");
+    executeFailureAction();
 }
 
 void BuzzerExecutor::beepRegister() {
-    currentMode = BEEP_REGISTER;
-    targetBeepCount = 2;
-    beepCount = 0;
-    lastBeepTime = millis();
-    isBeeping = true;
-    digitalWrite(buzzerPin, HIGH);
-    Serial.println("Buzzer: Register beep");
+    // 两次中响表示注册成功
+    if (isExecuting_) {
+        stopExecution();
+    }
+
+    Serial.println("Buzzer: Register beep (compatibility mode)");
+    for (int i = 0; i < 2; i++) {
+        digitalWrite(buzzerPin, HIGH);
+        delay(300);
+        digitalWrite(buzzerPin, LOW);
+        delay(200);
+    }
 }
 
 void BuzzerExecutor::beepDelete() {
-    currentMode = BEEP_DELETE;
-    targetBeepCount = 1;
-    beepCount = 0;
-    lastBeepTime = millis();
-    isBeeping = true;
+    // 一次中响表示删除成功
+    if (isExecuting_) {
+        stopExecution();
+    }
+
+    Serial.println("Buzzer: Delete beep (compatibility mode)");
     digitalWrite(buzzerPin, HIGH);
-    Serial.println("Buzzer: Delete beep");
-}
-
-void BuzzerExecutor::handleBeeping() {
-    if (!isBeeping || currentMode == BEEP_NONE) {
-        return;
-    }
-    
-    unsigned long currentTime = millis();
-    unsigned long beepDuration;
-    
-    // 确定蜂鸣持续时间
-    switch (currentMode) {
-        case BEEP_SUCCESS:
-            beepDuration = LONG_BEEP;
-            break;
-        case BEEP_FAILURE:
-            beepDuration = SHORT_BEEP;
-            break;
-        case BEEP_REGISTER:
-        case BEEP_DELETE:
-            beepDuration = MEDIUM_BEEP;
-            break;
-        default:
-            beepDuration = SHORT_BEEP;
-            break;
-    }
-    
-    // 检查是否需要停止当前蜂鸣
-    if (digitalRead(buzzerPin) == HIGH && (currentTime - lastBeepTime >= beepDuration)) {
-        digitalWrite(buzzerPin, LOW);
-        beepCount++;
-        lastBeepTime = currentTime;
-        
-        // 检查是否完成所有蜂鸣
-        if (beepCount >= targetBeepCount) {
-            stopBeeping();
-        }
-    }
-    
-    // 检查是否需要开始下一次蜂鸣
-    if (digitalRead(buzzerPin) == LOW && beepCount < targetBeepCount && 
-        (currentTime - lastBeepTime >= BEEP_INTERVAL)) {
-        digitalWrite(buzzerPin, HIGH);
-        lastBeepTime = currentTime;
-    }
-}
-
-void BuzzerExecutor::stopBeeping() {
+    delay(300);
     digitalWrite(buzzerPin, LOW);
-    isBeeping = false;
-    currentMode = BEEP_NONE;
-    beepCount = 0;
-    targetBeepCount = 0;
 }
 
 bool BuzzerExecutor::isActive() const {
-    return isBeeping;
+    return isExecuting_;
 }
