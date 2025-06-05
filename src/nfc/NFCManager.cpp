@@ -15,14 +15,14 @@ bool NFCManager::initialize() {
     // 初始化PN532
     nfc->begin();
     
-    uint32_t versiondata = nfc->getFirmwareVersion();
-    if (!versiondata) {
+    uint32_t versionData = nfc->getFirmwareVersion();
+    if (!versionData) {
         Serial.println("NFC Manager: PN532 not found");
         return false;
     }
     
     Serial.print("NFC Manager: Found chip PN5");
-    Serial.println((versiondata >> 24) & 0xFF, HEX);
+    Serial.println((versionData >> 24) & 0xFF, HEX);
     
     // 配置PN532为读取RFID标签
     nfc->SAMConfig();
@@ -34,16 +34,21 @@ bool NFCManager::initialize() {
 NFCManager::CardDetectionResult NFCManager::detectCard() {
     switch (currentState) {
         case STATE_IDLE:
+        case STATE_CARD_PRESENT:
             // 启动被动检测
             if (startPassiveDetection()) {
-                // 立即检测到卡片，但需要延迟以避免重复触发
+                // 立即检测到卡片，立即读走卡片UID
+                uint8_t uid[7] = {0};
+                uint8_t uidLength = 0;
+                readCardUID(uid, &uidLength);
+
                 Serial.println("NFC Manager: Card detected immediately");
                 currentState = STATE_CARD_PRESENT;
                 lastDetectionTime = millis();
                 
                 // 延迟一段时间，避免立即重复检测
                 delay(CARD_PERSISTENCE_DELAY);
-                return CARD_DETECTED;
+                return CARD_PERSISTENT;
             } else {
                 // 进入检测模式，等待IRQ
                 currentState = STATE_DETECTING;
@@ -59,23 +64,7 @@ NFCManager::CardDetectionResult NFCManager::detectCard() {
                 return CARD_DETECTED;
             }
             return NO_CARD;
-            
-        case STATE_CARD_PRESENT:
-            // 检查卡片是否仍在场
-            if (digitalRead(irqPin) == HIGH) {
-                // IRQ引脚变高，卡片可能已移开
-                Serial.println("NFC Manager: Card removed");
-                currentState = STATE_IDLE;
-                return NO_CARD;
-            } else {
-                // 卡片仍在场
-                if (millis() - lastDetectionTime > CARD_PERSISTENCE_DELAY) {
-                    return CARD_PERSISTENT;
-                } else {
-                    return NO_CARD; // 在延迟期内，不报告卡片状态
-                }
-            }
-            
+
         default:
             return NO_CARD;
     }

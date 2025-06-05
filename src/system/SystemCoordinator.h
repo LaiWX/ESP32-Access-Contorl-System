@@ -69,7 +69,7 @@ public:
      * @param command 命令字符串
      * @return 是否成功处理
      */
-    bool SystemCoordinator::handleCommand(const String& command);
+    bool handleCommand(const String& command);
 
     /**
      * 初始化系统协调器

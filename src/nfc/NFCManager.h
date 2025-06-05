@@ -35,7 +35,7 @@ private:
     unsigned long lastDetectionTime;
     
     // 卡片持续在场的延迟时间（毫秒）
-    static const unsigned long CARD_PERSISTENCE_DELAY = 200;
+    static const unsigned long CARD_PERSISTENCE_DELAY = 500;
 
 public:
     /**
