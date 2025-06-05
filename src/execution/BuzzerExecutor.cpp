@@ -38,6 +38,27 @@ void BuzzerExecutor::executeSuccessAction() {
     );
 }
 
+void BuzzerExecutor::executeDoorCloseAction() {
+    // 松开舵机时的反馈
+    if (isExecuting_) {
+        stopExecution();
+    }
+
+    Serial.println("Buzzer Executor: Starting success action (async)");
+    currentMode = MODE_DOOR_CLOSE;
+    isExecuting_ = true;
+
+    // 创建FreeRTOS任务
+    xTaskCreate(
+        buzzerTaskFunction,
+        "BuzzerTask",
+        2048,
+        this,
+        1,
+        &taskHandle
+    );
+}
+
 void BuzzerExecutor::executeFailureAction() {
     if (isExecuting_) {
         stopExecution();
@@ -88,6 +109,9 @@ void BuzzerExecutor::buzzerTaskFunction(void* parameter) {
         case MODE_FAILURE:
             executor->performFailurePattern();
             break;
+        case MODE_DOOR_CLOSE:
+            executor->performDoorClosePattern();
+            break;
         default:
             break;
     }
@@ -105,56 +129,28 @@ void BuzzerExecutor::buzzerTaskFunction(void* parameter) {
 }
 
 void BuzzerExecutor::performSuccessPattern() {
-    // 单次长响表示成功
-    digitalWrite(buzzerPin, HIGH);
-    vTaskDelay(pdMS_TO_TICKS(500));
-    digitalWrite(buzzerPin, LOW);
+    // 升调表达成功
+    tone(buzzerPin, 784, 100);  // 784HZ
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    tone(buzzerPin, 880, 100);  // 880HZ
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    tone(buzzerPin, 980, 100);  // 980HZ
+}
+
+void BuzzerExecutor::performDoorClosePattern() {
+    // 降调表达关门
+    tone(buzzerPin, 980, 100);  // 980HZ
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    tone(buzzerPin, 880, 100);  // 880HZ
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    tone(buzzerPin, 784, 100);  // 784HZ
 }
 
 void BuzzerExecutor::performFailurePattern() {
-    // 三次短响表示失败
-    for (int i = 0; i < 3; i++) {
-        digitalWrite(buzzerPin, HIGH);
-        vTaskDelay(pdMS_TO_TICKS(100));
-        digitalWrite(buzzerPin, LOW);
-        vTaskDelay(pdMS_TO_TICKS(200));
-    }
-}
-
-// 兼容性方法
-void BuzzerExecutor::beepDoorOpen() {
-    executeSuccessAction();
-}
-
-void BuzzerExecutor::beepFailure() {
-    executeFailureAction();
-}
-
-void BuzzerExecutor::beepRegister() {
-    // 两次中响表示注册成功
-    if (isExecuting_) {
-        stopExecution();
-    }
-
-    Serial.println("Buzzer: Register beep (compatibility mode)");
-    for (int i = 0; i < 2; i++) {
-        digitalWrite(buzzerPin, HIGH);
-        delay(300);
-        digitalWrite(buzzerPin, LOW);
-        delay(200);
-    }
-}
-
-void BuzzerExecutor::beepDelete() {
-    // 一次中响表示删除成功
-    if (isExecuting_) {
-        stopExecution();
-    }
-
-    Serial.println("Buzzer: Delete beep (compatibility mode)");
-    digitalWrite(buzzerPin, HIGH);
-    delay(300);
-    digitalWrite(buzzerPin, LOW);
+    // 低音重复表达失败
+    tone(buzzerPin, 262, 150);
+    vTaskDelay(150 / portTICK_PERIOD_MS);
+    tone(buzzerPin, 262, 150);
 }
 
 bool BuzzerExecutor::isActive() const {

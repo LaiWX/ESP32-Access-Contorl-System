@@ -29,11 +29,11 @@
 #define PN532_IRQ   4
 #define PN532_RESET 5
 
-// LED pin
+// LED引脚
 #define LED_PIN 2
 
 // 蜂鸣器引脚
-#define BUZZER_PIN 12
+#define BUZZER_PIN 16
 
 // 舵机引脚
 #define SERVO_PIN 14

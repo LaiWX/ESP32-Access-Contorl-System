@@ -21,8 +21,9 @@ private:
     // 执行模式
     enum ExecutionMode {
         MODE_NONE,
-        MODE_SUCCESS,    // 单次长响
-        MODE_FAILURE     // 三次短响
+        MODE_SUCCESS,    // 升调表达成功
+        MODE_FAILURE,    // 低音两声
+        MODE_DOOR_CLOSE  // 降调表达关门
     };
 
     ExecutionMode currentMode;
@@ -33,6 +34,7 @@ private:
     // 实际的蜂鸣器控制逻辑
     void performSuccessPattern();
     void performFailurePattern();
+    void performDoorClosePattern();
 
 public:
     /**
@@ -54,13 +56,19 @@ public:
 
     /**
      * 执行成功动作（异步）
-     * 单次长响表示成功
+     * 升调表达成功
      */
     void executeSuccessAction() override;
 
     /**
+     * 执行关门动作（异步）
+     * 降调表达关门
+     */
+    void executeDoorCloseAction();
+
+    /**
      * 执行失败动作（异步）
-     * 三次短响表示失败
+     * 低音两声表达失败
      */
     void executeFailureAction() override;
 
@@ -80,27 +88,6 @@ public:
      * @return 执行器名称
      */
     const char* getName() const override;
-
-    // 兼容性方法（保留用于向后兼容）
-    /**
-     * 成功响应（单次长响）
-     */
-    void beepDoorOpen();
-
-    /**
-     * 失败响应（三次短响）
-     */
-    void beepFailure();
-
-    /**
-     * 注册成功响应（两次中响）
-     */
-    void beepRegister();
-
-    /**
-     * 删除成功响应（一次中响）
-     */
-    void beepDelete();
 
     /**
      * 检查是否正在蜂鸣
