@@ -63,7 +63,14 @@ public:
      * @param operation 管理操作指针
      */
     void addManagementOperation(const String& type, IManagementOperation* operation);
-    
+
+    /**
+     * 处理串口命令
+     * @param command 命令字符串
+     * @return 是否成功处理
+     */
+    bool SystemCoordinator::handleCommand(const String& command);
+
     /**
      * 初始化系统协调器
      * @return 初始化是否成功

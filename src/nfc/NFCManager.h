@@ -40,11 +40,10 @@ private:
 public:
     /**
      * 构造函数
-     * @param nfcModule PN532模块指针
      * @param irq IRQ引脚
      * @param reset 复位引脚
      */
-    NFCManager(Adafruit_PN532* nfcModule, int irq, int reset);
+    NFCManager(int irq, int reset);
     
     /**
      * 初始化NFC管理器

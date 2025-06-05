@@ -7,8 +7,6 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <SPI.h>
-#include <Adafruit_PN532.h>
 
 // 改进的模块化组件
 #include "system/SystemCoordinator.h"
@@ -46,15 +44,13 @@
 // =============================================================================
 // 全局对象
 // =============================================================================
-// 硬件对象
-Adafruit_PN532 nfc(PN532_IRQ, PN532_RESET);
 
 // 数据管理
 CardDatabase cardDatabase;
 FileSystemManager fileSystemManager(&cardDatabase);
 
 // NFC管理器（新的封装层）
-NFCManager nfcManager(&nfc, PN532_IRQ, PN532_RESET);
+NFCManager nfcManager(PN532_IRQ, PN532_RESET);
 
 // 执行器
 LEDExecutor ledExecutor(LED_PIN);
@@ -77,24 +73,19 @@ SystemCoordinator systemCoordinator(&doorExecutor);
 // =============================================================================
 void printWelcomeMessage() {
     Serial.println("\n=================================");
-    Serial.println("  Improved Door Access System   ");
+    Serial.println("          门禁系统          ");
     Serial.println("=================================");
-    Serial.println("Architecture improvements:");
-    Serial.println("  - State machine coordinator");
-    Serial.println("  - Mutual exclusion between auth/mgmt");
-    Serial.println("  - Improved NFC wrapper");
+    Serial.println("命令:");
+    Serial.println("  card:register       - 注册新卡片");
+    Serial.println("  card:list           - 列出已注册卡片");
+    Serial.println("  card:delete:<UID>   - 删除储存的卡片信息");
+    Serial.println("  card:erase:<UID>    - 擦除卡片并删除卡片信息");
+    Serial.println("  reset               - 重置所有组件");
+    Serial.println("  help                - 显示帮助信息");
     Serial.println("=================================");
-    Serial.println("Commands:");
-    Serial.println("  card:register       - Register new card");
-    Serial.println("  card:list           - List all cards");
-    Serial.println("  card:delete:<UID>   - Delete card");
-    Serial.println("  card:erase:<UID>    - Erase card key and delete");
-    Serial.println("  reset               - Reset all components");
-    Serial.println("  help                - Show this help");
-    Serial.println("=================================");
-    Serial.println("Authentication methods:");
-    Serial.println("  - NFC card authentication");
-    Serial.println("  - Manual trigger (pin " + String(MANUAL_TRIGGER_PIN) + ")");
+    Serial.println("当前可用的认证方式:");
+    Serial.println("  - NFC 卡片认证");
+    Serial.println("  - 手动按钮 (pin " + String(MANUAL_TRIGGER_PIN) + ")");
     Serial.println("=================================");
 }
 
@@ -105,22 +96,13 @@ void processSerialCommand() {
     String command = Serial.readStringUntil('\n');
     command.trim();
 
-    if (command.equalsIgnoreCase("reset")) {
-        systemCoordinator.resetAll();
-    }
-    else if (command.equalsIgnoreCase("help")) {
+    if (command.equalsIgnoreCase("help")) {
         printWelcomeMessage();
     }
-    else if (command.indexOf(':') != -1) {
-        // 新的命令格式：type:action[:param]
+    else {
         if (!systemCoordinator.requestManagementState(command)) {
             Serial.println("Command failed. Type 'help' for available commands.");
         }
-    }
-    else {
-        Serial.println("Unknown command. Type 'help' for available commands.");
-        Serial.println("Use format: type:action[:param]");
-        Serial.println("Example: card:register, card:delete:ABC123");
     }
 }
 

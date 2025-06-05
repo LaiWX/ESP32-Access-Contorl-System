@@ -80,6 +80,17 @@ void SystemCoordinator::handleLoop() {
     }
 }
 
+bool SystemCoordinator::handleCommand(const String& command) {
+    if (command.equalsIgnoreCase("reset")) {
+        resetAll();
+        return true;
+    }
+    if (command.indexOf(':') != -1) {
+        return requestManagementState(command);
+    }
+    return false;
+}
+
 bool SystemCoordinator::requestManagementState(const String& command) {
     if (currentState == STATE_MANAGEMENT) {
         Serial.println("System Coordinator: Already in management state");

@@ -1,11 +1,13 @@
 #include "NFCManager.h"
 
-NFCManager::NFCManager(Adafruit_PN532* nfcModule, int irq, int reset)
-    : nfc(nfcModule), irqPin(irq), resetPin(reset), currentState(STATE_IDLE),
+NFCManager::NFCManager(int irq, int reset)
+    : nfc(nullptr), irqPin(irq), resetPin(reset), currentState(STATE_IDLE),
       irqCurr(HIGH), irqPrev(HIGH), lastDetectionTime(0) {
 }
 
 bool NFCManager::initialize() {
+    nfc = new Adafruit_PN532(irqPin, resetPin);
+
     pinMode(irqPin, INPUT_PULLUP);
     
     Serial.println("NFC Manager: Initializing...");
