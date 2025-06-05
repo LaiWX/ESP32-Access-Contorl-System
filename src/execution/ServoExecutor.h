@@ -65,9 +65,21 @@ public:
 
     /**
      * 执行成功动作（异步）
-     * 开门并在3秒后自动关门
+     * 开门并在3秒后自动关门（保持原有行为）
      */
     void executeSuccessAction() override;
+
+    /**
+     * 执行开门动作（异步）
+     * 只开门，不自动关门
+     */
+    void executeOpenDoorAction();
+
+    /**
+     * 执行关门动作（同步）
+     * 立即关门
+     */
+    void executeCloseDoorAction();
 
     /**
      * 执行失败动作（异步）

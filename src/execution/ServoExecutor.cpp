@@ -55,7 +55,7 @@ void ServoExecutor::executeSuccessAction() {
         stopExecution();
     }
 
-    Serial.println("Servo Executor: Starting success action (async) - Opening door");
+    Serial.println("Servo Executor: Starting success action (async) - Opening door with auto-close");
     isExecuting_ = true;
 
     // 创建FreeRTOS任务
@@ -67,6 +67,18 @@ void ServoExecutor::executeSuccessAction() {
         1,
         &taskHandle
     );
+}
+
+void ServoExecutor::executeOpenDoorAction() {
+    Serial.println("Servo Executor: Opening door");
+    setServoAngle(DOOR_OPEN_ANGLE);
+    doorIsOpen = true;
+}
+
+void ServoExecutor::executeCloseDoorAction() {
+    Serial.println("Servo Executor: Closing door");
+    setServoAngle(DOOR_CLOSED_ANGLE);
+    doorIsOpen = false;
 }
 
 void ServoExecutor::executeFailureAction() {

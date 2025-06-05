@@ -39,7 +39,7 @@
 #define SERVO_PIN 14
 
 // 手动触发引脚
-#define MANUAL_TRIGGER_PIN 13
+#define MANUAL_TRIGGER_PIN 35
 
 // =============================================================================
 // 全局对象

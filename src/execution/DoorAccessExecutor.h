@@ -2,6 +2,8 @@
 #define DOORACCESSEXECUTOR_H
 
 #include "../interfaces/IActionExecutor.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 // 前向声明
 class LEDExecutor;
@@ -18,6 +20,16 @@ private:
     LEDExecutor* ledExecutor;
     BuzzerExecutor* buzzerExecutor;
     ServoExecutor* servoExecutor;
+
+    // 定时关门相关
+    TaskHandle_t doorCloseTaskHandle;
+    bool doorCloseTaskActive;
+
+    // 门开启持续时间（毫秒）
+    static const unsigned long DOOR_OPEN_DURATION = 3000;  // 3秒后自动关门
+
+    // 静态任务函数
+    static void doorCloseTaskFunction(void* parameter);
 
 public:
     /**

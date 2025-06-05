@@ -4,7 +4,8 @@
 #include "ServoExecutor.h"
 
 DoorAccessExecutor::DoorAccessExecutor(LEDExecutor* led, BuzzerExecutor* buzzer, ServoExecutor* servo)
-    : ledExecutor(led), buzzerExecutor(buzzer), servoExecutor(servo) {
+    : ledExecutor(led), buzzerExecutor(buzzer), servoExecutor(servo),
+      doorCloseTaskHandle(nullptr), doorCloseTaskActive(false) {
 }
 
 bool DoorAccessExecutor::initialize() {
@@ -37,7 +38,14 @@ bool DoorAccessExecutor::initialize() {
 void DoorAccessExecutor::executeSuccessAction() {
     Serial.println("Door Access Executor: Executing success action (OPEN DOOR)");
 
-    // 协调所有执行器执行成功动作
+    // 停止之前的关门任务（如果存在）
+    if (doorCloseTaskHandle != nullptr) {
+        vTaskDelete(doorCloseTaskHandle);
+        doorCloseTaskHandle = nullptr;
+        doorCloseTaskActive = false;
+    }
+
+    // 协调LED和蜂鸣器执行成功动作
     if (ledExecutor) {
         ledExecutor->executeSuccessAction();
     }
@@ -46,9 +54,21 @@ void DoorAccessExecutor::executeSuccessAction() {
         buzzerExecutor->executeSuccessAction();
     }
 
+    // 舵机只执行开门动作（不自动关门）
     if (servoExecutor) {
-        servoExecutor->executeSuccessAction();
+        servoExecutor->executeOpenDoorAction();
     }
+
+    // 启动定时关门任务
+    doorCloseTaskActive = true;
+    xTaskCreate(
+        doorCloseTaskFunction,
+        "DoorCloseTask",
+        2048,
+        this,
+        1,
+        &doorCloseTaskHandle
+    );
 }
 
 void DoorAccessExecutor::executeFailureAction() {
@@ -84,11 +104,22 @@ bool DoorAccessExecutor::isExecuting() const {
         anyExecuting = true;
     }
 
+    if (doorCloseTaskActive) {
+        anyExecuting = true;
+    }
+
     return anyExecuting;
 }
 
 void DoorAccessExecutor::stopExecution() {
     Serial.println("Door Access Executor: Stopping all executions");
+
+    // 停止定时关门任务
+    if (doorCloseTaskHandle != nullptr) {
+        vTaskDelete(doorCloseTaskHandle);
+        doorCloseTaskHandle = nullptr;
+        doorCloseTaskActive = false;
+    }
 
     if (ledExecutor) {
         ledExecutor->stopExecution();
@@ -117,4 +148,35 @@ ServoExecutor* DoorAccessExecutor::getServoExecutor() const {
 
 const char* DoorAccessExecutor::getName() const {
     return "Door Access Executor";
+}
+
+// 静态任务函数 - 定时关门
+void DoorAccessExecutor::doorCloseTaskFunction(void* parameter) {
+    DoorAccessExecutor* executor = static_cast<DoorAccessExecutor*>(parameter);
+
+    Serial.println("Door Access Executor: Door close timer started");
+
+    // 等待指定时间
+    vTaskDelay(pdMS_TO_TICKS(DOOR_OPEN_DURATION));
+
+    Serial.println("Door Access Executor: Auto-closing door with sound");
+
+    // 执行关门动作
+    if (executor->servoExecutor) {
+        executor->servoExecutor->executeCloseDoorAction();
+    }
+
+    // 播放关门声音
+    if (executor->buzzerExecutor) {
+        executor->buzzerExecutor->executeDoorCloseAction();
+    }
+
+    // 清理任务状态
+    executor->doorCloseTaskActive = false;
+    executor->doorCloseTaskHandle = nullptr;
+
+    Serial.println("Door Access Executor: Door close sequence completed");
+
+    // 删除任务
+    vTaskDelete(nullptr);
 }
