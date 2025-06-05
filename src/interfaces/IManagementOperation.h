@@ -41,6 +41,12 @@ public:
      * @return 是否有操作正在进行
      */
     virtual bool hasOngoingOperation() = 0;
+
+    /**
+     * 检查操作是否已完成（成功或失败）
+     * @return 是否有操作刚刚完成
+     */
+    virtual bool hasCompletedOperation() = 0;
     
     /**
      * 处理管理操作（在主循环中调用）

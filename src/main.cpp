@@ -100,7 +100,7 @@ void processSerialCommand() {
         printWelcomeMessage();
     }
     else {
-        if (!systemCoordinator.requestManagementState(command)) {
+        if (!systemCoordinator.handleCommand(command)) {
             Serial.println("Command failed. Type 'help' for available commands.");
         }
     }

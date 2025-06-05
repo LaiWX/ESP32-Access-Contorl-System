@@ -100,6 +100,13 @@ public:
     void resetAll();
     
     /**
+     * 执行管理命令
+     * @param command 命令字符串
+     * @return 执行是否成功
+     */
+    bool executeManagementCommand(const String& command);
+    
+    /**
      * 列出可用的管理操作类型
      */
     void listAvailableManagementTypes();
@@ -124,13 +131,6 @@ private:
      * 检查管理状态超时
      */
     void checkManagementTimeout();
-    
-    /**
-     * 执行管理命令
-     * @param command 命令字符串
-     * @return 执行是否成功
-     */
-    bool executeManagementCommand(const String& command);
     
     /**
      * 解析管理命令

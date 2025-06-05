@@ -37,9 +37,7 @@ private:
     enum NFCState {
         NFC_IDLE,
         NFC_DETECTING,
-        NFC_CARD_PRESENT,
-        NFC_REGISTERING,
-        NFC_ERASING
+        NFC_CARD_PRESENT
     };
 
     NFCState currentState;
@@ -48,6 +46,7 @@ private:
     // 操作状态
     bool operationCompleted;
     bool operationSuccess;
+    bool operationJustCompleted;  // 新增：标记操作是否刚刚完成
     unsigned long operationStartTime;
     String targetUID;
     
@@ -89,15 +88,10 @@ public:
     bool eraseAndDeleteItem(const String& id) override;
     void listRegisteredItems() override;
     bool hasOngoingOperation() override;
+    bool hasCompletedOperation() override;
     void handleOperations() override;
     void reset() override;
     const char* getName() const override;
-
-    // 兼容性方法（保持向后兼容）
-    bool registerNewCard() { return registerNew(); }
-    bool deleteCard(const String& uid) { return deleteItem(uid); }
-    bool eraseAndDeleteCard(const String& uid) { return eraseAndDeleteItem(uid); }
-    void listRegisteredCards() { listRegisteredItems(); }
 };
 
 #endif // NFCCARDMANAGER_H

@@ -1,12 +1,11 @@
 #include "NFCCardManager.h"
-#include <vector>
 
 NFCCardManager::NFCCardManager(NFCManager* manager, CardDatabase* db,
                                FileSystemManager* fsManager, DoorAccessExecutor* executor)
     : nfcManager(manager), cardDatabase(db), fileSystemManager(fsManager), doorExecutor(executor),
       currentState(NFC_IDLE), currentOperation(OP_NONE),
-      operationCompleted(false), operationSuccess(false), operationStartTime(0),
-      lastOperationTime(0) {
+      operationCompleted(false), operationSuccess(false), operationJustCompleted(false),
+      operationStartTime(0), lastOperationTime(0) {
 }
 
 bool NFCCardManager::registerNew() {
@@ -20,8 +19,8 @@ bool NFCCardManager::registerNew() {
     // 注意：新架构中管理模式由SystemCoordinator控制
     // 这里不需要请求管理模式，因为调用此函数时已经在管理状态
 
-    // 进入注册状态
-    currentState = NFC_REGISTERING;
+    // 首先进入检测状态，等待卡片
+    currentState = NFC_DETECTING;
     operationStartTime = millis();
     currentOperation = OP_REGISTER;
 
@@ -71,8 +70,8 @@ bool NFCCardManager::eraseAndDeleteItem(const String& uid) {
     // 注意：新架构中管理模式由SystemCoordinator控制
     // 这里不需要请求管理模式，因为调用此函数时已经在管理状态
 
-    // 进入擦除状态
-    currentState = NFC_ERASING;
+    // 首先进入检测状态，等待卡片
+    currentState = NFC_DETECTING;
     operationStartTime = millis();
     targetUID = uid;
     currentOperation = OP_ERASE;
@@ -101,6 +100,14 @@ bool NFCCardManager::hasOngoingOperation() {
     return currentState != NFC_IDLE;
 }
 
+bool NFCCardManager::hasCompletedOperation() {
+    if (operationJustCompleted) {
+        operationJustCompleted = false; // 清除标志，确保只返回一次true
+        return true;
+    }
+    return false;
+}
+
 void NFCCardManager::handleOperations() {
     if (currentState == NFC_IDLE) {
         return;
@@ -116,10 +123,12 @@ void NFCCardManager::handleOperations() {
     handleCardDetection();
 
     // 处理具体操作
-    if (currentState == NFC_REGISTERING) {
-        processRegistration();
-    } else if (currentState == NFC_ERASING) {
-        processErasure();
+    if (currentState == NFC_CARD_PRESENT) {
+        if (currentOperation == OP_REGISTER) {
+            processRegistration();
+        } else if (currentOperation == OP_ERASE) {
+            processErasure();
+        }
     }
 
     // 检查操作是否完成
@@ -140,7 +149,10 @@ void NFCCardManager::handleOperations() {
                 Serial.println("Failed to save changes to file system");
             }
         }
-        
+
+        // 设置操作刚刚完成的标志
+        operationJustCompleted = true;
+
         // 重置状态
         resetOperationState();
     }
@@ -148,6 +160,7 @@ void NFCCardManager::handleOperations() {
 
 void NFCCardManager::reset() {
     resetOperationState();
+    operationJustCompleted = false; // 完全重置时清除此标志
     lastOperationTime = 0;
     lastCardUID = "";
 }
@@ -168,7 +181,7 @@ void NFCCardManager::handleCardDetection() {
     if (currentState == NFC_DETECTING) {
         // 使用新的NFCManager检查卡片
         NFCManager::CardDetectionResult result = nfcManager->detectCard();
-        if (result == NFCManager::CARD_DETECTED) {
+        if (result == NFCManager::CARD_DETECTED || result == NFCManager::CARD_PERSISTENT) {
             Serial.println("Card Manager: Card detected via NFCManager");
             currentState = NFC_CARD_PRESENT;
         }
@@ -346,6 +359,7 @@ void NFCCardManager::resetOperationState() {
     currentOperation = OP_NONE;
     operationCompleted = false;
     operationSuccess = false;
+    // 注意：不重置operationJustCompleted，让SystemCoordinator有机会读取它
     operationStartTime = 0;
     targetUID = "";
 

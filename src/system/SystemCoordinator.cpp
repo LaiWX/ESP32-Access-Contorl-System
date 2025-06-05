@@ -176,6 +176,13 @@ void SystemCoordinator::handleManagementState() {
         IManagementOperation* operation = pair.second;
         if (operation) {
             operation->handleOperations();
+
+            // 检查操作是否刚刚完成
+            if (operation->hasCompletedOperation()) {
+                Serial.println("System Coordinator: Management operation completed, returning to authentication state");
+                transitionToState(STATE_AUTHENTICATION);
+                return; // 立即退出，避免处理其他操作
+            }
         }
     }
 }
