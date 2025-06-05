@@ -19,9 +19,22 @@ private:
     TaskHandle_t taskHandle;
     bool doorIsOpen;
 
+    // PWM配置常量（基于调试demo参数）
+    static constexpr int PWM_CHANNEL = 0;
+    static constexpr int PWM_FREQ = 50;        // 50Hz → 20ms周期
+    static constexpr int PWM_BIT = 12;         // 分辨率12位
+    static constexpr int PWM_MAX = (1 << PWM_BIT); // 4096
+
+    // 每 step 代表的时间（微秒）
+    static constexpr float STEP_TIME = 20000.0 / PWM_MAX; // ≈ 4.88us
+
+    // 定义 0度 (0.53ms)，180度 (2.53ms) 所对应的 PWM 值
+    static constexpr int PWM_0_DEGREE = static_cast<int>(530.0 / STEP_TIME);    // 0°开门
+    static constexpr int PWM_180_DEGREE = static_cast<int>(2530.0 / STEP_TIME); // 180°关门
+
     // 舵机角度
-    static const int DOOR_CLOSED_ANGLE = 0;   // 关门角度
-    static const int DOOR_OPEN_ANGLE = 90;    // 开门角度
+    static const int DOOR_CLOSED_ANGLE = 180;   // 关门角度
+    static const int DOOR_OPEN_ANGLE = 0;    // 开门角度
 
     // 动作持续时间（毫秒）
     static const unsigned long DOOR_OPEN_DURATION = 3000;  // 3秒后自动关门

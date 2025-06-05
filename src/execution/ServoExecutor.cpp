@@ -1,4 +1,6 @@
 #include "ServoExecutor.h"
+#include <Arduino.h>
+#include "driver/ledc.h"
 
 ServoExecutor::ServoExecutor(int pin)
     : servoPin(pin), isExecuting_(false), taskHandle(nullptr), doorIsOpen(false) {
@@ -9,14 +11,41 @@ ServoExecutor::~ServoExecutor() {
 }
 
 bool ServoExecutor::initialize() {
-    pinMode(servoPin, OUTPUT);
+    // 配置LEDC定时器
+    ledc_timer_config_t timer_config = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = static_cast<ledc_timer_bit_t>(PWM_BIT),
+        .timer_num = LEDC_TIMER_0,
+        .freq_hz = PWM_FREQ,
+        .clk_cfg = LEDC_AUTO_CLK
+    };
+    esp_err_t timer_result = ledc_timer_config(&timer_config);
+
+    // 配置LEDC通道
+    ledc_channel_config_t channel_config = {
+        .gpio_num = servoPin,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = static_cast<ledc_channel_t>(PWM_CHANNEL),
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = LEDC_TIMER_0,
+        .duty = 0,
+        .hpoint = 0
+    };
+    esp_err_t channel_result = ledc_channel_config(&channel_config);
+
+    if (timer_result != ESP_OK || channel_result != ESP_OK) {
+        Serial.println("Servo Executor: PWM configuration failed");
+        return false;
+    }
 
     // 初始化为关门状态
     setServoAngle(DOOR_CLOSED_ANGLE);
     doorIsOpen = false;
 
     Serial.print("Servo Executor initialized on pin ");
-    Serial.println(servoPin);
+    Serial.print(servoPin);
+    Serial.print(" with PWM channel ");
+    Serial.println(PWM_CHANNEL);
 
     return true;
 }
@@ -115,18 +144,33 @@ bool ServoExecutor::isDoorOpen() const {
 }
 
 void ServoExecutor::setServoAngle(int angle) {
-    // 简化的PWM控制（实际项目中可能需要使用Servo库）
-    // 这里只是示例实现
-    int pulseWidth = map(angle, 0, 180, 1000, 2000); // 1ms到2ms脉宽
-    
-    // 发送PWM信号（简化版本）
-    for (int i = 0; i < 10; i++) {
-        digitalWrite(servoPin, HIGH);
-        delayMicroseconds(pulseWidth);
-        digitalWrite(servoPin, LOW);
-        delayMicroseconds(20000 - pulseWidth); // 20ms周期
+    // 使用精确的PWM值映射角度
+    uint32_t duty;
+
+    if (angle == 0) {
+        // 0°关门位置：0.53ms脉宽
+        duty = PWM_0_DEGREE;
+    } else if (angle == 180) {
+        // 180°开门位置：2.53ms脉宽
+        duty = PWM_180_DEGREE;
+    } else {
+        // 线性插值其他角度
+        duty = map(angle, 0, 180, PWM_0_DEGREE, PWM_180_DEGREE);
     }
-    
+
+    // 设置PWM占空比
+    esp_err_t result = ledc_set_duty(LEDC_LOW_SPEED_MODE, static_cast<ledc_channel_t>(PWM_CHANNEL), duty);
+    if (result == ESP_OK) {
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, static_cast<ledc_channel_t>(PWM_CHANNEL));
+    }
+
     Serial.print("Servo angle set to: ");
-    Serial.println(angle);
+    Serial.print(angle);
+    Serial.print("° (PWM duty: ");
+    Serial.print(duty);
+    Serial.print("/");
+    Serial.print(PWM_MAX);
+    Serial.print(", pulse width: ");
+    Serial.print(duty * STEP_TIME / 1000.0, 2);
+    Serial.println("ms)");
 }
