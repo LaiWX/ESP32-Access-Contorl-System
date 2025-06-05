@@ -86,21 +86,9 @@ bool SystemCoordinator::handleCommand(const String& command) {
         return true;
     }
     if (command.indexOf(':') != -1) {
-        return requestManagementState(command);
-    }
-    return false;
-}
-
-bool SystemCoordinator::requestManagementState(const String& command) {
-    if (currentState == STATE_MANAGEMENT) {
-        Serial.println("System Coordinator: Already in management state");
         return executeManagementCommand(command);
     }
-    
-    Serial.println("System Coordinator: Entering management state");
-    transitionToState(STATE_MANAGEMENT);
-    
-    return executeManagementCommand(command);
+    return false;
 }
 
 void SystemCoordinator::exitManagementState() {
@@ -211,6 +199,15 @@ bool SystemCoordinator::executeManagementCommand(const String& command) {
         Serial.println("System Coordinator: Invalid command format. Use: type:action[:param]");
         Serial.println("Examples: card:register, card:delete:ABC123, card:list");
         return false;
+    }
+
+    if (currentState == STATE_MANAGEMENT) {
+        Serial.println("System Coordinator: Already in management state");
+    }
+
+    if (action != "list") {
+        Serial.println("System Coordinator: Entering management state");
+        transitionToState(STATE_MANAGEMENT);
     }
 
     // 查找对应的管理操作

@@ -82,14 +82,7 @@ public:
      * 实现状态机逻辑
      */
     void handleLoop();
-    
-    /**
-     * 请求进入管理状态
-     * @param command 管理命令
-     * @return 是否成功进入管理状态
-     */
-    bool requestManagementState(const String& command);
-    
+
     /**
      * 强制退出管理状态
      */
