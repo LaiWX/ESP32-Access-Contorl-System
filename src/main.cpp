@@ -39,7 +39,7 @@
 #define SERVO_PIN 14
 
 // 手动触发引脚
-#define MANUAL_TRIGGER_PIN 35
+#define MANUAL_TRIGGER_PIN 25
 
 // =============================================================================
 // 全局对象
@@ -184,5 +184,5 @@ void loop() {
     systemCoordinator.handleLoop();
 
     // 小延迟防止CPU过度使用
-    delay(10);
+    delay(50);
 }
